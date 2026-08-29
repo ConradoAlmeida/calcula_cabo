@@ -57,6 +57,27 @@ _CAPACIDADE_PADRAO = {
     185.0: 300, 240.0: 355,
 }
 
+# Métodos de instalação -> coeficiente de convecção efetivo (W/(m²·°C)).
+_INSTALACAO_PADRAO = {
+    "ar_livre": 10.0,
+    "eletroduto_aparente": 6.0,
+    "eletroduto_embutido": 4.0,
+    "enterrado": 3.0,
+}
+_INSTALACAO_ROTULOS_PADRAO = {
+    "ar_livre": "Ao ar livre (exposto)",
+    "eletroduto_aparente": "Em eletroduto aparente",
+    "eletroduto_embutido": "Em eletroduto embutido na parede",
+    "enterrado": "Enterrado / subterrâneo",
+}
+_INSTALACAO_METODO_PADRAO = "ar_livre"
+
+# Fator aplicado ao coeficiente de convecção conforme o nº de condutores
+# agrupados lado a lado (mais condutores juntos = pior dissipação).
+_AGRUPAMENTO_PADRAO = {
+    1: 1.00, 2: 0.85, 3: 0.79, 4: 0.75, 5: 0.73, 6: 0.72, 7: 0.71, 8: 0.70,
+}
+
 
 @dataclass
 class Config:
@@ -70,6 +91,10 @@ class Config:
     bitolas_comerciais: list = field(default_factory=list)
     conversao_awg: dict = field(default_factory=dict)
     capacidade_corrente: dict = field(default_factory=dict)
+    instalacao: dict = field(default_factory=dict)
+    instalacao_rotulos: dict = field(default_factory=dict)
+    instalacao_padrao: str = _INSTALACAO_METODO_PADRAO
+    agrupamento: dict = field(default_factory=dict)
 
 
 def _num_awg(texto):
@@ -94,6 +119,10 @@ def carregar_config(caminho=None):
     bitolas = list(_BITOLAS_PADRAO)
     conversao = dict(_CONVERSAO_AWG_PADRAO)
     capacidade = dict(_CAPACIDADE_PADRAO)
+    instalacao = dict(_INSTALACAO_PADRAO)
+    instalacao_rotulos = dict(_INSTALACAO_ROTULOS_PADRAO)
+    instalacao_padrao = _INSTALACAO_METODO_PADRAO
+    agrupamento = dict(_AGRUPAMENTO_PADRAO)
 
     caminho = caminho or CONFIG_PATH_PADRAO
     if os.path.exists(caminho):
@@ -127,6 +156,33 @@ def carregar_config(caminho=None):
             if itens:
                 capacidade = {float(k): _num_corrente(v) for k, v in itens}
 
+        if parser.has_section("instalacao"):
+            metodos = {}
+            for chave, valor in parser.items("instalacao"):
+                if chave == "padrao":
+                    instalacao_padrao = valor.strip()
+                    continue
+                try:
+                    metodos[chave] = float(valor)
+                except ValueError:
+                    continue
+            if metodos:
+                instalacao = metodos
+
+        if parser.has_section("instalacao_rotulos"):
+            rotulos = dict(parser.items("instalacao_rotulos"))
+            if rotulos:
+                instalacao_rotulos = rotulos
+
+        if parser.has_section("agrupamento"):
+            itens = parser.items("agrupamento")
+            if itens:
+                agrupamento = {int(k): float(v) for k, v in itens}
+
+    # Garante que o método padrão exista entre os métodos disponíveis.
+    if instalacao_padrao not in instalacao and instalacao:
+        instalacao_padrao = next(iter(instalacao))
+
     return Config(
         resistividade_cobre=fisica["resistividade_cobre"],
         densidade_cobre=fisica["densidade_cobre"],
@@ -137,7 +193,50 @@ def carregar_config(caminho=None):
         bitolas_comerciais=bitolas,
         conversao_awg=conversao,
         capacidade_corrente=capacidade,
+        instalacao=instalacao,
+        instalacao_rotulos=instalacao_rotulos,
+        instalacao_padrao=instalacao_padrao,
+        agrupamento=agrupamento,
     )
+
+
+def metodos_instalacao(cfg=None):
+    """Lista os métodos de instalação disponíveis (id, rótulo e coeficiente)."""
+    cfg = cfg or CFG
+    metodos = []
+    for chave, coef in cfg.instalacao.items():
+        metodos.append({
+            "id": chave,
+            "rotulo": cfg.instalacao_rotulos.get(chave, chave.replace("_", " ").capitalize()),
+            "coef_conveccao": coef,
+        })
+    return metodos
+
+
+def fator_agrupamento(n_condutores, cfg=None):
+    """Fator de convecção conforme o nº de condutores agrupados lado a lado."""
+    cfg = cfg or CFG
+    tabela = cfg.agrupamento
+    if not tabela:
+        return 1.0
+    n = max(1, int(n_condutores))
+    if n in tabela:
+        return tabela[n]
+    maior = max(tabela)
+    return tabela[maior] if n > maior else 1.0
+
+
+def coef_conveccao_efetivo(metodo=None, n_condutores=1, cfg=None):
+    """Coeficiente de convecção efetivo (W/(m²·°C)) para o método e agrupamento.
+
+    h_efetivo = h(método de instalação) × fator(nº de condutores agrupados)
+    """
+    cfg = cfg or CFG
+    metodo = metodo or cfg.instalacao_padrao
+    base = cfg.instalacao.get(metodo)
+    if base is None:
+        base = cfg.coef_conveccao
+    return base * fator_agrupamento(n_condutores, cfg)
 
 
 def config_para_dict(cfg=None):
@@ -155,6 +254,9 @@ def config_para_dict(cfg=None):
         "bitolas_comerciais": list(cfg.bitolas_comerciais),
         "conversao_awg": {str(k): v for k, v in cfg.conversao_awg.items()},
         "capacidade_corrente": {str(k): v for k, v in cfg.capacidade_corrente.items()},
+        "instalacao": metodos_instalacao(cfg),
+        "instalacao_padrao": cfg.instalacao_padrao,
+        "agrupamento": {str(k): v for k, v in cfg.agrupamento.items()},
     }
 
 
@@ -298,7 +400,7 @@ def calcular_bitola_cb(distancia, corrente, tensao, queda_percentual=3):
     }
 
 
-def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, diametro_externo=None):
+def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, diametro_externo=None, coef_conveccao=None):
     """
     Calcula o tempo para o cabo alcançar a temperatura máxima suportada.
     
@@ -310,6 +412,10 @@ def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, 
         temp_maxima (float): Temperatura máxima suportada pelo cabo em °C
         temp_ambiente (float): Temperatura ambiente em °C (padrão: 25°C)
         diametro_externo (float): Diâmetro externo do cabo em mm (opcional)
+        coef_conveccao (float): Coeficiente de convecção efetivo W/(m²·°C).
+            Se None, usa o valor de config.ini ([fisica] coef_conveccao). Passe
+            o valor de coef_conveccao_efetivo() para considerar o método de
+            instalação e o agrupamento de condutores.
     
     Returns:
         dict: Dicionário com resultados do cálculo térmico
@@ -349,9 +455,10 @@ def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, 
     # Potência dissipada (efeito Joule)
     potencia_gerada = (corrente ** 2) * resistencia_1m  # em Watts
     
-    # Coeficiente de transferência térmica por convecção (ar parado)
-    # Valores típicos: 5-25 W/(m²·°C) - config.ini
-    h_conveccao = CFG.coef_conveccao  # W/(m²·°C)
+    # Coeficiente de transferência térmica por convecção efetivo.
+    # Pode vir do método de instalação + agrupamento (coef_conveccao_efetivo);
+    # se não informado, usa o valor base de config.ini ([fisica]).
+    h_conveccao = coef_conveccao if coef_conveccao is not None else CFG.coef_conveccao  # W/(m²·°C)
     
     # Diferença de temperatura a atingir
     delta_temp = temp_maxima - temp_ambiente
@@ -468,6 +575,11 @@ def salvar_relatorio_txt(
     if not caminho_arquivo:
         caminho_arquivo = f"relatorio_bitola_dc_{timestamp}.txt"
 
+    metodo_id = dados_entrada.get('metodo_instalacao', CFG.instalacao_padrao)
+    metodo_rotulo = CFG.instalacao_rotulos.get(metodo_id, metodo_id)
+    n_condutores = dados_entrada.get('n_condutores', 1)
+    h_efetivo = coef_conveccao_efetivo(metodo_id, n_condutores)
+
     secao_entrada = [
         "DADOS DE ENTRADA",
         f"- Distancia (m): {dados_entrada['distancia']}",
@@ -477,6 +589,9 @@ def salvar_relatorio_txt(
         f"- Temperatura ambiente (C): {dados_entrada['temp_amb']}",
         f"- Temperatura maxima do cabo (C): {dados_entrada['temp_max']}",
         f"- Diametro externo (mm): {dados_entrada['diametro'] if dados_entrada['diametro'] else 'estimado'}",
+        f"- Metodo de instalacao: {metodo_rotulo}",
+        f"- Condutores agrupados: {n_condutores}",
+        f"- Coef. conveccao efetivo (W/m2.C): {h_efetivo:.2f}",
         ""
     ]
 
@@ -554,6 +669,8 @@ def gerar_nome_relatorio_por_inputs(dados_entrada, incluir_tabela_referencia=Fal
         str(dados_entrada['temp_amb']),
         str(dados_entrada['temp_max']),
         str(dados_entrada['diametro']),
+        str(dados_entrada.get('metodo_instalacao', CFG.instalacao_padrao)),
+        str(dados_entrada.get('n_condutores', 1)),
         str(incluir_tabela_referencia)
     ])
     sufixo_hash = hashlib.sha1(assinatura.encode("utf-8")).hexdigest()[:8]
