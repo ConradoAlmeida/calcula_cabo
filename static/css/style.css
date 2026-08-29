@@ -15,17 +15,6 @@ body {
   background-attachment: fixed;
 }
 
-.app-header .brand-mark {
-  font-size: 26px;
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #4f8cff, #7c5cff);
-  box-shadow: 0 10px 28px rgba(79, 140, 255, 0.4);
-}
-
 /* Formulário fixo em telas grandes. */
 @media (min-width: 992px) {
   .form-card {
