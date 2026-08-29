@@ -5,16 +5,266 @@ Script para calcular a bitola ideal de cabo de energia elétrica DC.
 Baseado na queda de tensão máxima permitida e resistividade do condutor.
 """
 
+from dataclasses import dataclass, field
 from datetime import datetime
+import configparser
 import hashlib
 import os
 
-# Tabela de bitolas comerciais disponíveis (em mm²)
-BITOLAS_COMERCIAIS = [
+# ---------------------------------------------------------------------------
+# Configuração / calibração (config.ini)
+# ---------------------------------------------------------------------------
+# Todas as constantes físicas, tabelas de conversão e valores padrão ficam em
+# config.ini. Os valores abaixo são os padrões embutidos, usados quando o
+# arquivo (ou uma chave) está ausente. Assim o módulo continua funcionando
+# mesmo sem o config.ini.
+
+CONFIG_PATH_PADRAO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.ini")
+
+_FISICA_PADRAO = {
+    "resistividade_cobre": 0.0175,   # Ohm·mm²/m
+    "densidade_cobre": 8900.0,       # kg/m³
+    "calor_especifico_cobre": 385.0, # J/(kg·°C)
+    "coef_conveccao": 10.0,          # W/(m²·°C)
+    "espessura_isolacao": 2.0,       # mm
+}
+
+_PADROES_ENTRADA = {
+    "distancia": 10.0,
+    "corrente": 5.0,
+    "tensao": 12.0,
+    "queda_percentual": 3.0,
+    "temp_max": 200.0,
+    "temp_amb": 25.0,
+}
+
+_BITOLAS_PADRAO = [
     0.5, 0.75, 1.0, 1.5, 2.5, 4.0, 6.0, 10.0,
     16.0, 25.0, 35.0, 50.0, 70.0, 95.0, 120.0,
-    150.0, 185.0, 240.0, 300.0, 400.0, 500.0, 630.0
+    150.0, 185.0, 240.0, 300.0, 400.0, 500.0, 630.0,
 ]
+
+_CONVERSAO_AWG_PADRAO = {
+    0.5: 20, 0.75: 19, 1.0: 18, 1.5: 16, 2.5: 14, 4.0: 12, 6.0: 10,
+    10.0: 8, 16.0: 6, 25.0: 4, 35.0: 2, 50.0: 1, 70.0: "1/0", 95.0: "2/0",
+    120.0: "3/0", 150.0: "4/0", 185.0: "250 MCM", 240.0: "300 MCM",
+    300.0: "350 MCM", 400.0: "400 MCM", 500.0: "500 MCM", 630.0: "600 MCM",
+}
+
+_CAPACIDADE_PADRAO = {
+    1.5: 16, 2.5: 20, 4.0: 25, 6.0: 32, 10.0: 44, 16.0: 60, 25.0: 80,
+    35.0: 100, 50.0: 125, 70.0: 160, 95.0: 195, 120.0: 225, 150.0: 260,
+    185.0: 300, 240.0: 355,
+}
+
+# Métodos de instalação -> coeficiente de convecção efetivo (W/(m²·°C)).
+_INSTALACAO_PADRAO = {
+    "ar_livre": 10.0,
+    "eletroduto_aparente": 6.0,
+    "eletroduto_embutido": 4.0,
+    "enterrado": 3.0,
+}
+_INSTALACAO_ROTULOS_PADRAO = {
+    "ar_livre": "Ao ar livre (exposto)",
+    "eletroduto_aparente": "Em eletroduto aparente",
+    "eletroduto_embutido": "Em eletroduto embutido na parede",
+    "enterrado": "Enterrado / subterrâneo",
+}
+_INSTALACAO_METODO_PADRAO = "ar_livre"
+
+# Fator aplicado ao coeficiente de convecção conforme o nº de condutores
+# agrupados lado a lado (mais condutores juntos = pior dissipação).
+_AGRUPAMENTO_PADRAO = {
+    1: 1.00, 2: 0.85, 3: 0.79, 4: 0.75, 5: 0.73, 6: 0.72, 7: 0.71, 8: 0.70,
+}
+
+
+@dataclass
+class Config:
+    """Constantes e tabelas usadas pelos cálculos (carregadas de config.ini)."""
+    resistividade_cobre: float
+    densidade_cobre: float
+    calor_especifico_cobre: float
+    coef_conveccao: float
+    espessura_isolacao: float
+    padroes: dict = field(default_factory=dict)
+    bitolas_comerciais: list = field(default_factory=list)
+    conversao_awg: dict = field(default_factory=dict)
+    capacidade_corrente: dict = field(default_factory=dict)
+    instalacao: dict = field(default_factory=dict)
+    instalacao_rotulos: dict = field(default_factory=dict)
+    instalacao_padrao: str = _INSTALACAO_METODO_PADRAO
+    agrupamento: dict = field(default_factory=dict)
+
+
+def _num_awg(texto):
+    """Converte o valor AWG: inteiro quando possível, senão mantém o texto."""
+    texto = str(texto).strip()
+    try:
+        return int(texto)
+    except ValueError:
+        return texto
+
+
+def _num_corrente(texto):
+    """Corrente máxima: inteiro quando for um valor inteiro, senão float."""
+    valor = float(texto)
+    return int(valor) if valor.is_integer() else valor
+
+
+def carregar_config(caminho=None):
+    """Carrega config.ini sobre os padrões embutidos e devolve um Config."""
+    fisica = dict(_FISICA_PADRAO)
+    padroes = dict(_PADROES_ENTRADA)
+    bitolas = list(_BITOLAS_PADRAO)
+    conversao = dict(_CONVERSAO_AWG_PADRAO)
+    capacidade = dict(_CAPACIDADE_PADRAO)
+    instalacao = dict(_INSTALACAO_PADRAO)
+    instalacao_rotulos = dict(_INSTALACAO_ROTULOS_PADRAO)
+    instalacao_padrao = _INSTALACAO_METODO_PADRAO
+    agrupamento = dict(_AGRUPAMENTO_PADRAO)
+
+    caminho = caminho or CONFIG_PATH_PADRAO
+    if os.path.exists(caminho):
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.optionxform = str  # preserva as chaves como estão
+        parser.read(caminho, encoding="utf-8")
+
+        if parser.has_section("fisica"):
+            for chave in fisica:
+                if parser.has_option("fisica", chave):
+                    fisica[chave] = parser.getfloat("fisica", chave)
+
+        if parser.has_section("padroes"):
+            for chave in padroes:
+                if parser.has_option("padroes", chave):
+                    padroes[chave] = parser.getfloat("padroes", chave)
+
+        if parser.has_option("bitolas_comerciais", "valores"):
+            bruto = parser.get("bitolas_comerciais", "valores")
+            itens = [x for x in bruto.replace(";", ",").split(",") if x.strip()]
+            if itens:
+                bitolas = sorted(float(x) for x in itens)
+
+        if parser.has_section("conversao_awg"):
+            itens = parser.items("conversao_awg")
+            if itens:
+                conversao = {float(k): _num_awg(v) for k, v in itens}
+
+        if parser.has_section("capacidade_corrente"):
+            itens = parser.items("capacidade_corrente")
+            if itens:
+                capacidade = {float(k): _num_corrente(v) for k, v in itens}
+
+        if parser.has_section("instalacao"):
+            metodos = {}
+            for chave, valor in parser.items("instalacao"):
+                if chave == "padrao":
+                    instalacao_padrao = valor.strip()
+                    continue
+                try:
+                    metodos[chave] = float(valor)
+                except ValueError:
+                    continue
+            if metodos:
+                instalacao = metodos
+
+        if parser.has_section("instalacao_rotulos"):
+            rotulos = dict(parser.items("instalacao_rotulos"))
+            if rotulos:
+                instalacao_rotulos = rotulos
+
+        if parser.has_section("agrupamento"):
+            itens = parser.items("agrupamento")
+            if itens:
+                agrupamento = {int(k): float(v) for k, v in itens}
+
+    # Garante que o método padrão exista entre os métodos disponíveis.
+    if instalacao_padrao not in instalacao and instalacao:
+        instalacao_padrao = next(iter(instalacao))
+
+    return Config(
+        resistividade_cobre=fisica["resistividade_cobre"],
+        densidade_cobre=fisica["densidade_cobre"],
+        calor_especifico_cobre=fisica["calor_especifico_cobre"],
+        coef_conveccao=fisica["coef_conveccao"],
+        espessura_isolacao=fisica["espessura_isolacao"],
+        padroes=padroes,
+        bitolas_comerciais=bitolas,
+        conversao_awg=conversao,
+        capacidade_corrente=capacidade,
+        instalacao=instalacao,
+        instalacao_rotulos=instalacao_rotulos,
+        instalacao_padrao=instalacao_padrao,
+        agrupamento=agrupamento,
+    )
+
+
+def metodos_instalacao(cfg=None):
+    """Lista os métodos de instalação disponíveis (id, rótulo e coeficiente)."""
+    cfg = cfg or CFG
+    metodos = []
+    for chave, coef in cfg.instalacao.items():
+        metodos.append({
+            "id": chave,
+            "rotulo": cfg.instalacao_rotulos.get(chave, chave.replace("_", " ").capitalize()),
+            "coef_conveccao": coef,
+        })
+    return metodos
+
+
+def fator_agrupamento(n_condutores, cfg=None):
+    """Fator de convecção conforme o nº de condutores agrupados lado a lado."""
+    cfg = cfg or CFG
+    tabela = cfg.agrupamento
+    if not tabela:
+        return 1.0
+    n = max(1, int(n_condutores))
+    if n in tabela:
+        return tabela[n]
+    maior = max(tabela)
+    return tabela[maior] if n > maior else 1.0
+
+
+def coef_conveccao_efetivo(metodo=None, n_condutores=1, cfg=None):
+    """Coeficiente de convecção efetivo (W/(m²·°C)) para o método e agrupamento.
+
+    h_efetivo = h(método de instalação) × fator(nº de condutores agrupados)
+    """
+    cfg = cfg or CFG
+    metodo = metodo or cfg.instalacao_padrao
+    base = cfg.instalacao.get(metodo)
+    if base is None:
+        base = cfg.coef_conveccao
+    return base * fator_agrupamento(n_condutores, cfg)
+
+
+def config_para_dict(cfg=None):
+    """Serializa a configuração atual (para inspeção/verificação dos números)."""
+    cfg = cfg or CFG
+    return {
+        "fisica": {
+            "resistividade_cobre": cfg.resistividade_cobre,
+            "densidade_cobre": cfg.densidade_cobre,
+            "calor_especifico_cobre": cfg.calor_especifico_cobre,
+            "coef_conveccao": cfg.coef_conveccao,
+            "espessura_isolacao": cfg.espessura_isolacao,
+        },
+        "padroes": dict(cfg.padroes),
+        "bitolas_comerciais": list(cfg.bitolas_comerciais),
+        "conversao_awg": {str(k): v for k, v in cfg.conversao_awg.items()},
+        "capacidade_corrente": {str(k): v for k, v in cfg.capacidade_corrente.items()},
+        "instalacao": metodos_instalacao(cfg),
+        "instalacao_padrao": cfg.instalacao_padrao,
+        "agrupamento": {str(k): v for k, v in cfg.agrupamento.items()},
+    }
+
+
+# Configuração ativa do módulo. Recarregável via carregar_config().
+CFG = carregar_config()
+
+# Compatibilidade: nome histórico ainda exportado.
+BITOLAS_COMERCIAIS = CFG.bitolas_comerciais
 
 
 def imprimir_tabela(titulo, cabecalhos, linhas):
@@ -49,20 +299,21 @@ def formatar_tabela(titulo, cabecalhos, linhas):
 
 def obter_bitolas_analise_termica(bitola_recomendada):
     """Retorna bitola recomendada e vizinhas imediatas na tabela comercial."""
-    indice = BITOLAS_COMERCIAIS.index(bitola_recomendada)
+    tabela = CFG.bitolas_comerciais
+    indice = tabela.index(bitola_recomendada)
     indices = [indice - 1, indice, indice + 1]
 
     bitolas = []
     for i in indices:
-        if 0 <= i < len(BITOLAS_COMERCIAIS):
-            bitolas.append(BITOLAS_COMERCIAIS[i])
+        if 0 <= i < len(tabela):
+            bitolas.append(tabela[i])
 
     return bitolas
 
 
 def calcular_queda_para_bitola(bitola, comprimento_total, corrente, tensao):
     """Calcula queda de tensão para uma bitola específica."""
-    resistividade_cobre = 0.0175
+    resistividade_cobre = CFG.resistividade_cobre
     resistencia = (resistividade_cobre * comprimento_total) / bitola
     queda_tensao = corrente * resistencia
     queda_percentual = (queda_tensao / tensao) * 100
@@ -81,33 +332,8 @@ def mm2_para_awg(mm2):
     Returns:
         int or str: Valor AWG ou a bitola em mm² se não houver equivalente direto
     """
-    # Tabela de conversão de mm² para AWG (valores comerciais)
-    conversao = {
-        0.5: 20,
-        0.75: 19,
-        1.0: 18,
-        1.5: 16,
-        2.5: 14,
-        4.0: 12,
-        6.0: 10,
-        10.0: 8,
-        16.0: 6,
-        25.0: 4,
-        35.0: 2,
-        50.0: 1,
-        70.0: '1/0',
-        95.0: '2/0',
-        120.0: '3/0',
-        150.0: '4/0',
-        185.0: '250 MCM',
-        240.0: '300 MCM',
-        300.0: '350 MCM',
-        400.0: '400 MCM',
-        500.0: '500 MCM',
-        630.0: '600 MCM'
-    }
-    
-    return conversao.get(mm2, f"{mm2} mm²")
+    # Tabela de conversão de mm² para AWG carregada de config.ini
+    return CFG.conversao_awg.get(mm2, f"{mm2} mm²")
 
 
 def calcular_bitola_cb(distancia, corrente, tensao, queda_percentual=3):
@@ -129,7 +355,7 @@ def calcular_bitola_cb(distancia, corrente, tensao, queda_percentual=3):
     """
     
     # Resistividade do cobre a 20°C em Ohm.mm²/m
-    resistividade_cobre = 0.0175
+    resistividade_cobre = CFG.resistividade_cobre
     
     # Se distância é de ida, considerar ida + volta
     comprimento_total = distancia * 2
@@ -143,13 +369,13 @@ def calcular_bitola_cb(distancia, corrente, tensao, queda_percentual=3):
     
     # Encontrar a bitola comercial mais próxima (sempre para cima)
     bitola_ideal = None
-    for bitola in BITOLAS_COMERCIAIS:
+    for bitola in CFG.bitolas_comerciais:
         if bitola >= secao_calculada:
             bitola_ideal = bitola
             break
     
     if bitola_ideal is None:
-        bitola_ideal = BITOLAS_COMERCIAIS[-1]
+        bitola_ideal = CFG.bitolas_comerciais[-1]
     
     # Calcular resistência real com a bitola escolhida
     resistencia_real = (resistividade_cobre * comprimento_total) / bitola_ideal
@@ -174,7 +400,7 @@ def calcular_bitola_cb(distancia, corrente, tensao, queda_percentual=3):
     }
 
 
-def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, diametro_externo=None):
+def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, diametro_externo=None, coef_conveccao=None):
     """
     Calcula o tempo para o cabo alcançar a temperatura máxima suportada.
     
@@ -186,22 +412,26 @@ def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, 
         temp_maxima (float): Temperatura máxima suportada pelo cabo em °C
         temp_ambiente (float): Temperatura ambiente em °C (padrão: 25°C)
         diametro_externo (float): Diâmetro externo do cabo em mm (opcional)
+        coef_conveccao (float): Coeficiente de convecção efetivo W/(m²·°C).
+            Se None, usa o valor de config.ini ([fisica] coef_conveccao). Passe
+            o valor de coef_conveccao_efetivo() para considerar o método de
+            instalação e o agrupamento de condutores.
     
     Returns:
         dict: Dicionário com resultados do cálculo térmico
     """
     
-    # Propriedades do cobre
-    resistividade_cobre = 0.0175  # Ohm.mm²/m
-    densidade_cobre = 8900  # kg/m³
-    calor_especifico_cobre = 385  # J/(kg·°C)
+    # Propriedades do cobre (config.ini)
+    resistividade_cobre = CFG.resistividade_cobre  # Ohm.mm²/m
+    densidade_cobre = CFG.densidade_cobre  # kg/m³
+    calor_especifico_cobre = CFG.calor_especifico_cobre  # J/(kg·°C)
     
     # Se não informar o diâmetro, estimar baseado na bitola
     if diametro_externo is None:
         # Estimativa: d = √(4×A/π) para condutor equivalente
         diametro_condutor = (4 * bitola / 3.14159) ** 0.5
         # Adicionar isolação (espessura típica 1-1.5mm)
-        diametro_externo = diametro_condutor + 2.0
+        diametro_externo = diametro_condutor + CFG.espessura_isolacao
     
     # Calcular para 1 metro de cabo
     comprimento = 1.0  # metro
@@ -217,15 +447,18 @@ def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, 
     volume_cobre = area_cobre * comprimento
     massa_cobre = volume_cobre * densidade_cobre
     
-    # Resistência de 1 metro de cabo
-    resistencia_1m = (resistividade_cobre * comprimento) / bitola * 1e-6  # em Ohms
+    # Resistência de 1 metro de cabo.
+    # rho está em Ohm·mm²/m e a bitola em mm², então (rho * L) / bitola já
+    # resulta em Ohms — não há conversão de unidade adicional a aplicar.
+    resistencia_1m = (resistividade_cobre * comprimento) / bitola  # em Ohms
     
     # Potência dissipada (efeito Joule)
     potencia_gerada = (corrente ** 2) * resistencia_1m  # em Watts
     
-    # Coeficiente de transferência térmica por convecção (ar parado)
-    # Valores típicos: 5-25 W/(m²·°C) - usando valor médio de 10
-    h_conveccao = 10  # W/(m²·°C)
+    # Coeficiente de transferência térmica por convecção efetivo.
+    # Pode vir do método de instalação + agrupamento (coef_conveccao_efetivo);
+    # se não informado, usa o valor base de config.ini ([fisica]).
+    h_conveccao = coef_conveccao if coef_conveccao is not None else CFG.coef_conveccao  # W/(m²·°C)
     
     # Diferença de temperatura a atingir
     delta_temp = temp_maxima - temp_ambiente
@@ -301,41 +534,16 @@ def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, 
 
 def tabela_bitolas():
     """Exibe uma tabela de referência de bitolas comerciais e suas capacidades"""
-    resistividade = 0.0175
-    
-    # Tabela de referências de corrente máxima (valores aproximados para 30°C)
-    capacidades = {
-        1.5: 16, 2.5: 20, 4.0: 25, 6.0: 32, 10.0: 44,
-        16.0: 60, 25.0: 80, 35.0: 100, 50.0: 125, 70.0: 160,
-        95.0: 195, 120.0: 225, 150.0: 260, 185.0: 300, 240.0: 355
-    }
-    
-    linhas = []
-    for bitola, corrente_max in capacidades.items():
-        resistencia_km = (resistividade / bitola) * 1000
-        awg = mm2_para_awg(bitola)
-        linhas.append([
-            f"{bitola:.1f}",
-            str(awg),
-            str(corrente_max),
-            f"{resistencia_km:.4f}"
-        ])
-
-    print(obter_tabela_bitolas_texto(linhas))
+    print(obter_tabela_bitolas_texto())
 
 
 def obter_tabela_bitolas_texto(linhas=None):
     """Retorna em texto a tabela de referência de bitolas."""
-    resistividade = 0.0175
-    capacidades = {
-        1.5: 16, 2.5: 20, 4.0: 25, 6.0: 32, 10.0: 44,
-        16.0: 60, 25.0: 80, 35.0: 100, 50.0: 125, 70.0: 160,
-        95.0: 195, 120.0: 225, 150.0: 260, 185.0: 300, 240.0: 355
-    }
+    resistividade = CFG.resistividade_cobre
 
     if linhas is None:
         linhas = []
-        for bitola, corrente_max in capacidades.items():
+        for bitola, corrente_max in CFG.capacidade_corrente.items():
             resistencia_km = (resistividade / bitola) * 1000
             awg = mm2_para_awg(bitola)
             linhas.append([
@@ -367,6 +575,11 @@ def salvar_relatorio_txt(
     if not caminho_arquivo:
         caminho_arquivo = f"relatorio_bitola_dc_{timestamp}.txt"
 
+    metodo_id = dados_entrada.get('metodo_instalacao', CFG.instalacao_padrao)
+    metodo_rotulo = CFG.instalacao_rotulos.get(metodo_id, metodo_id)
+    n_condutores = dados_entrada.get('n_condutores', 1)
+    h_efetivo = coef_conveccao_efetivo(metodo_id, n_condutores)
+
     secao_entrada = [
         "DADOS DE ENTRADA",
         f"- Distancia (m): {dados_entrada['distancia']}",
@@ -376,6 +589,9 @@ def salvar_relatorio_txt(
         f"- Temperatura ambiente (C): {dados_entrada['temp_amb']}",
         f"- Temperatura maxima do cabo (C): {dados_entrada['temp_max']}",
         f"- Diametro externo (mm): {dados_entrada['diametro'] if dados_entrada['diametro'] else 'estimado'}",
+        f"- Metodo de instalacao: {metodo_rotulo}",
+        f"- Condutores agrupados: {n_condutores}",
+        f"- Coef. conveccao efetivo (W/m2.C): {h_efetivo:.2f}",
         ""
     ]
 
@@ -453,6 +669,8 @@ def gerar_nome_relatorio_por_inputs(dados_entrada, incluir_tabela_referencia=Fal
         str(dados_entrada['temp_amb']),
         str(dados_entrada['temp_max']),
         str(dados_entrada['diametro']),
+        str(dados_entrada.get('metodo_instalacao', CFG.instalacao_padrao)),
+        str(dados_entrada.get('n_condutores', 1)),
         str(incluir_tabela_referencia)
     ])
     sufixo_hash = hashlib.sha1(assinatura.encode("utf-8")).hexdigest()[:8]
@@ -467,26 +685,27 @@ def main():
     print("CALCULADORA DE BITOLA IDEAL PARA CABO DC")
     print("="*80 + "\n")
     
+    padroes = CFG.padroes
     try:
         # Entradas principais
-        distancia_input = input("Distância entre a fonte e o equipamento (metros) [padrão 10]: ").strip()
-        distancia = float(distancia_input) if distancia_input else 10.0
+        distancia_input = input(f"Distância entre a fonte e o equipamento (metros) [padrão {padroes['distancia']:g}]: ").strip()
+        distancia = float(distancia_input) if distancia_input else padroes['distancia']
 
-        corrente_input = input("Corrente do equipamento (Amperes) [padrão 5]: ").strip()
-        corrente = float(corrente_input) if corrente_input else 5.0
+        corrente_input = input(f"Corrente do equipamento (Amperes) [padrão {padroes['corrente']:g}]: ").strip()
+        corrente = float(corrente_input) if corrente_input else padroes['corrente']
 
-        tensao_input = input("Tensão do sistema (Volts DC) [padrão 12]: ").strip()
-        tensao = float(tensao_input) if tensao_input else 12.0
+        tensao_input = input(f"Tensão do sistema (Volts DC) [padrão {padroes['tensao']:g}]: ").strip()
+        tensao = float(tensao_input) if tensao_input else padroes['tensao']
 
-        queda_input = input("Queda de tensão máxima permitida em % (padrão 3%): ")
-        queda_percentual = float(queda_input) if queda_input else 3
+        queda_input = input(f"Queda de tensão máxima permitida em % (padrão {padroes['queda_percentual']:g}%): ")
+        queda_percentual = float(queda_input) if queda_input else padroes['queda_percentual']
 
         # Entradas térmicas já no mesmo fluxo
-        temp_max_input = input("Temperatura máxima suportada pelo cabo (°C) [padrão 200]: ").strip()
-        temp_max = float(temp_max_input) if temp_max_input else 200.0
+        temp_max_input = input(f"Temperatura máxima suportada pelo cabo (°C) [padrão {padroes['temp_max']:g}]: ").strip()
+        temp_max = float(temp_max_input) if temp_max_input else padroes['temp_max']
 
-        temp_amb_input = input("Temperatura ambiente (°C) [padrão 25]: ").strip()
-        temp_amb = float(temp_amb_input) if temp_amb_input else 25
+        temp_amb_input = input(f"Temperatura ambiente (°C) [padrão {padroes['temp_amb']:g}]: ").strip()
+        temp_amb = float(temp_amb_input) if temp_amb_input else padroes['temp_amb']
 
         diametro_input = input("Diâmetro externo do cabo em mm (opcional, Enter para estimar): ")
         diametro = float(diametro_input) if diametro_input else None
