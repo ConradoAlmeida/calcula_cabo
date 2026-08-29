@@ -12,9 +12,11 @@ import tempfile
 from flask import Flask, jsonify, render_template, request, send_file
 
 from calcular_bitola_cabo_dc import (
+    CFG,
     calcular_bitola_cb,
     calcular_queda_para_bitola,
     calcular_tempo_aquecimento,
+    config_para_dict,
     gerar_nome_relatorio_por_inputs,
     mm2_para_awg,
     obter_bitolas_analise_termica,
@@ -23,23 +25,9 @@ from calcular_bitola_cabo_dc import (
 
 app = Flask(__name__)
 
-# Valores padrao usados quando um campo e deixado em branco (iguais ao CLI).
-PADROES = {
-    "distancia": 10.0,
-    "corrente": 5.0,
-    "tensao": 12.0,
-    "queda_percentual": 3.0,
-    "temp_max": 200.0,
-    "temp_amb": 25.0,
-}
-
-# Capacidade de corrente aproximada (A) a ~30 C, para a tabela de referencia.
-CAPACIDADES_REFERENCIA = {
-    1.5: 16, 2.5: 20, 4.0: 25, 6.0: 32, 10.0: 44,
-    16.0: 60, 25.0: 80, 35.0: 100, 50.0: 125, 70.0: 160,
-    95.0: 195, 120.0: 225, 150.0: 260, 185.0: 300, 240.0: 355,
-}
-RESISTIVIDADE_COBRE = 0.0175
+# Toda a calibração (constantes, tabelas e valores padrão) vem de config.ini,
+# via o módulo de cálculo. Assim CLI e web usam exatamente os mesmos números.
+PADROES = CFG.padroes
 
 
 def _to_float(valor, padrao):
@@ -92,8 +80,8 @@ def _parse_entradas(dados):
 def _tabela_referencia():
     """Retorna as linhas estruturadas da tabela de referencia de bitolas."""
     linhas = []
-    for bitola, corrente_max in CAPACIDADES_REFERENCIA.items():
-        resistencia_km = (RESISTIVIDADE_COBRE / bitola) * 1000
+    for bitola, corrente_max in CFG.capacidade_corrente.items():
+        resistencia_km = (CFG.resistividade_cobre / bitola) * 1000
         linhas.append({
             "bitola": f"{bitola:.1f}",
             "awg": str(mm2_para_awg(bitola)),
@@ -166,6 +154,16 @@ def index():
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.route("/api/config")
+def api_config():
+    """Expõe a configuração/calibração ativa (constantes, tabelas, padrões).
+
+    Útil para conferir os números usados: conversão mm²↔AWG, resistividade,
+    coeficiente de convecção (W/m²·°C), capacidades de corrente, etc.
+    """
+    return jsonify(config_para_dict())
 
 
 @app.route("/api/calcular", methods=["POST"])
