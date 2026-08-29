@@ -37,6 +37,56 @@ python calcular_bitola_cabo_dc.py
 
 O programa é interativo. Basta responder às perguntas no terminal. Se um campo for deixado em branco, o valor padrão é usado.
 
+## Interface web
+
+Além da CLI, o projeto oferece uma interface web (Flask + [Bootstrap 5.3](https://getbootstrap.com/)) que reaproveita as mesmas funções de cálculo. A aplicação Flask fica em `app.py`.
+
+### Executar em desenvolvimento
+
+```bash
+uv run python app.py
+```
+
+A aplicação sobe em `http://localhost:8000` (a porta pode ser alterada com a variável de ambiente `PORT`).
+
+### Executar em produção (gunicorn)
+
+```bash
+uv run gunicorn --bind 0.0.0.0:8000 --workers 2 app:app
+```
+
+### Endpoints
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET` | `/` | Página com o formulário e os resultados. |
+| `GET` | `/health` | Verificação de saúde (`{"status": "ok"}`). |
+| `POST` | `/api/calcular` | Recebe os parâmetros em JSON e devolve o dimensionamento e a análise térmica. |
+| `POST` | `/api/relatorio` | Gera e devolve o relatório `.txt` para download. |
+| `GET` | `/api/config` | Devolve a configuração/calibração ativa (constantes, tabelas e padrões) para conferência. |
+
+O Bootstrap é servido localmente (`static/vendor/bootstrap/`), então a interface funciona sem acesso à internet.
+
+## Deploy com Docker / Podman
+
+O projeto inclui um `Dockerfile` (imagem base `ghcr.io/astral-sh/uv:python3.14-bookworm-slim`, servida por gunicorn como usuário sem privilégios).
+
+### Docker
+
+```bash
+docker build -t calcula-cabo .
+docker run --rm -p 8000:8000 calcula-cabo
+```
+
+### Podman
+
+```bash
+podman build -t calcula-cabo .
+podman run --rm -p 8000:8000 calcula-cabo
+```
+
+Depois, acesse `http://localhost:8000`.
+
 ## Dados de entrada
 
 | Campo | Unidade | Padrão | Observação |
@@ -51,6 +101,33 @@ O programa é interativo. Basta responder às perguntas no terminal. Se um campo
 | Salvar relatório TXT | s/n | — | Nome do arquivo é derivado dos parâmetros de entrada |
 | Incluir tabela de referência no TXT | s/n | — | Só aparece se o relatório for salvo |
 | Ver tabela de referência no terminal | s/n | — | Após o cálculo |
+
+## Configuração e calibração (`config.ini`)
+
+Todas as constantes físicas, as tabelas de conversão e os valores padrão de entrada ficam em [`config.ini`](config.ini). Edite os números lá para **recalibrar ou conferir** os cálculos sem tocar no código. Cada campo tem um valor padrão embutido no código, então o programa continua funcionando mesmo sem o arquivo.
+
+| Seção | Conteúdo |
+| --- | --- |
+| `[fisica]` | Resistividade do cobre (Ω·mm²/m), densidade (kg/m³), calor específico (J/(kg·°C)), coeficiente de convecção (W/(m²·°C)) e espessura de isolação (mm). |
+| `[padroes]` | Valores fixos de entrada usados quando um campo é deixado em branco. |
+| `[bitolas_comerciais]` | Lista de bitolas comerciais (mm²). |
+| `[conversao_awg]` | Tabela de conversão mm² → AWG/MCM. |
+| `[capacidade_corrente]` | Capacidade de corrente aproximada por bitola (tabela de referência). |
+| `[instalacao]` | Método de instalação → coeficiente de convecção efetivo (W/(m²·°C)); `padrao` define o método inicial. |
+| `[instalacao_rotulos]` | Rótulos exibidos na interface para cada método. |
+| `[agrupamento]` | Fator de convecção conforme o número de condutores agrupados lado a lado. |
+
+### Método de instalação e agrupamento
+
+A análise térmica considera **como** o cabo é instalado e **quantos** condutores estão agrupados, porque ambos afetam a dissipação de calor. O coeficiente de convecção efetivo é:
+
+```text
+h_efetivo = h(método de instalação) × fator(nº de condutores agrupados)
+```
+
+Um `h` menor (eletroduto embutido, enterrado, muitos condutores juntos) significa pior dissipação e, portanto, **temperatura mais alta**. Os métodos e fatores são totalmente configuráveis em `config.ini` e aparecem como um seletor e um campo numérico na interface web.
+
+Para conferir os números em uso a qualquer momento (via web), acesse `GET /api/config`, que devolve a configuração ativa em JSON.
 
 ## Como o cálculo funciona
 
@@ -119,9 +196,21 @@ O TXT contém:
 
 ```text
 calcula_cabo/
-├── calcular_bitola_cabo_dc.py   # calculadora interativa (script principal)
+├── calcular_bitola_cabo_dc.py   # calculadora interativa (script principal / funções de cálculo)
+├── config.ini                   # constantes, tabelas e valores padrão (calibração)
+├── test_calculos.py             # testes de verificação dos cálculos e do config.ini
+├── app.py                       # aplicação web Flask (reaproveita as funções de cálculo)
+├── templates/
+│   └── index.html               # página da interface web
+├── static/
+│   ├── css/style.css            # ajustes de estilo sobre o Bootstrap
+│   ├── js/app.js                # lógica da interface (fetch da API + render)
+│   └── vendor/bootstrap/        # Bootstrap 5.3 servido localmente
 ├── main.py                      # ponto de entrada gerado pelo uv
+├── Dockerfile                   # imagem de container (gunicorn)
+├── .dockerignore
 ├── pyproject.toml
+├── uv.lock
 ├── .python-version
 └── README.md
 ```
