@@ -63,6 +63,7 @@ uv run gunicorn --bind 0.0.0.0:8000 --workers 2 app:app
 | `GET` | `/health` | Verificação de saúde (`{"status": "ok"}`). |
 | `POST` | `/api/calcular` | Recebe os parâmetros em JSON e devolve o dimensionamento e a análise térmica. |
 | `POST` | `/api/relatorio` | Gera e devolve o relatório `.txt` para download. |
+| `GET` | `/api/config` | Devolve a configuração/calibração ativa (constantes, tabelas e padrões) para conferência. |
 
 O Bootstrap é servido localmente (`static/vendor/bootstrap/`), então a interface funciona sem acesso à internet.
 
@@ -100,6 +101,20 @@ Depois, acesse `http://localhost:8000`.
 | Salvar relatório TXT | s/n | — | Nome do arquivo é derivado dos parâmetros de entrada |
 | Incluir tabela de referência no TXT | s/n | — | Só aparece se o relatório for salvo |
 | Ver tabela de referência no terminal | s/n | — | Após o cálculo |
+
+## Configuração e calibração (`config.ini`)
+
+Todas as constantes físicas, as tabelas de conversão e os valores padrão de entrada ficam em [`config.ini`](config.ini). Edite os números lá para **recalibrar ou conferir** os cálculos sem tocar no código. Cada campo tem um valor padrão embutido no código, então o programa continua funcionando mesmo sem o arquivo.
+
+| Seção | Conteúdo |
+| --- | --- |
+| `[fisica]` | Resistividade do cobre (Ω·mm²/m), densidade (kg/m³), calor específico (J/(kg·°C)), coeficiente de convecção (W/(m²·°C)) e espessura de isolação (mm). |
+| `[padroes]` | Valores fixos de entrada usados quando um campo é deixado em branco. |
+| `[bitolas_comerciais]` | Lista de bitolas comerciais (mm²). |
+| `[conversao_awg]` | Tabela de conversão mm² → AWG/MCM. |
+| `[capacidade_corrente]` | Capacidade de corrente aproximada por bitola (tabela de referência). |
+
+Para conferir os números em uso a qualquer momento (via web), acesse `GET /api/config`, que devolve a configuração ativa em JSON.
 
 ## Como o cálculo funciona
 
@@ -169,6 +184,8 @@ O TXT contém:
 ```text
 calcula_cabo/
 ├── calcular_bitola_cabo_dc.py   # calculadora interativa (script principal / funções de cálculo)
+├── config.ini                   # constantes, tabelas e valores padrão (calibração)
+├── test_calculos.py             # testes de verificação dos cálculos e do config.ini
 ├── app.py                       # aplicação web Flask (reaproveita as funções de cálculo)
 ├── templates/
 │   └── index.html               # página da interface web
