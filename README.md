@@ -37,6 +37,55 @@ python calcular_bitola_cabo_dc.py
 
 O programa é interativo. Basta responder às perguntas no terminal. Se um campo for deixado em branco, o valor padrão é usado.
 
+## Interface web
+
+Além da CLI, o projeto oferece uma interface web (Flask + [Bootstrap 5.3](https://getbootstrap.com/)) que reaproveita as mesmas funções de cálculo. A aplicação Flask fica em `app.py`.
+
+### Executar em desenvolvimento
+
+```bash
+uv run python app.py
+```
+
+A aplicação sobe em `http://localhost:8000` (a porta pode ser alterada com a variável de ambiente `PORT`).
+
+### Executar em produção (gunicorn)
+
+```bash
+uv run gunicorn --bind 0.0.0.0:8000 --workers 2 app:app
+```
+
+### Endpoints
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET` | `/` | Página com o formulário e os resultados. |
+| `GET` | `/health` | Verificação de saúde (`{"status": "ok"}`). |
+| `POST` | `/api/calcular` | Recebe os parâmetros em JSON e devolve o dimensionamento e a análise térmica. |
+| `POST` | `/api/relatorio` | Gera e devolve o relatório `.txt` para download. |
+
+O Bootstrap é servido localmente (`static/vendor/bootstrap/`), então a interface funciona sem acesso à internet.
+
+## Deploy com Docker / Podman
+
+O projeto inclui um `Dockerfile` (imagem base `ghcr.io/astral-sh/uv:python3.14-bookworm-slim`, servida por gunicorn como usuário sem privilégios).
+
+### Docker
+
+```bash
+docker build -t calcula-cabo .
+docker run --rm -p 8000:8000 calcula-cabo
+```
+
+### Podman
+
+```bash
+podman build -t calcula-cabo .
+podman run --rm -p 8000:8000 calcula-cabo
+```
+
+Depois, acesse `http://localhost:8000`.
+
 ## Dados de entrada
 
 | Campo | Unidade | Padrão | Observação |
@@ -119,9 +168,19 @@ O TXT contém:
 
 ```text
 calcula_cabo/
-├── calcular_bitola_cabo_dc.py   # calculadora interativa (script principal)
+├── calcular_bitola_cabo_dc.py   # calculadora interativa (script principal / funções de cálculo)
+├── app.py                       # aplicação web Flask (reaproveita as funções de cálculo)
+├── templates/
+│   └── index.html               # página da interface web
+├── static/
+│   ├── css/style.css            # ajustes de estilo sobre o Bootstrap
+│   ├── js/app.js                # lógica da interface (fetch da API + render)
+│   └── vendor/bootstrap/        # Bootstrap 5.3 servido localmente
 ├── main.py                      # ponto de entrada gerado pelo uv
+├── Dockerfile                   # imagem de container (gunicorn)
+├── .dockerignore
 ├── pyproject.toml
+├── uv.lock
 ├── .python-version
 └── README.md
 ```
