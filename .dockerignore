@@ -1,0 +1,18 @@
+# Ambiente e cache
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Git e metadados do editor/agente
+.git/
+.gitignore
+.cursor/
+
+# Artefatos gerados
+relatorio_*.txt
+
+# Documentacao e imagens que nao afetam o runtime
+*.md
