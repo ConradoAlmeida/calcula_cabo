@@ -62,9 +62,25 @@
                 </div>
               </div>
 
-              <div class="mb-4">
+              <div class="mb-3">
                 <label for="diametro" class="form-label">Diâmetro externo <span class="text-body-secondary">(mm, opcional)</span></label>
                 <input type="number" class="form-control" id="diametro" name="diametro" step="any" min="0" placeholder="estimado automaticamente" />
+              </div>
+
+              <div class="mb-3">
+                <label for="metodo_instalacao" class="form-label">Método de instalação</label>
+                <select class="form-select" id="metodo_instalacao" name="metodo_instalacao">
+                  {% for met in metodos %}
+                  <option value="{{ met.id }}"{% if met.id == metodo_padrao %} selected{% endif %}>{{ met.rotulo }}</option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">Define quão bem o cabo dissipa calor (convecção).</div>
+              </div>
+
+              <div class="mb-4">
+                <label for="n_condutores" class="form-label">Condutores agrupados <span class="text-body-secondary">(lado a lado)</span></label>
+                <input type="number" class="form-control" id="n_condutores" name="n_condutores" min="1" step="1" value="1" />
+                <div class="form-text">Mais condutores juntos = pior dissipação = mais quente.</div>
               </div>
 
               <div class="d-grid gap-2">
@@ -131,7 +147,8 @@
           <div class="card shadow-sm">
             <div class="card-body">
               <h2 class="h6 mb-1">Análise térmica comparativa</h2>
-              <p class="text-body-secondary small mb-3">Bitola anterior, recomendada e seguinte na tabela comercial.</p>
+              <p class="text-body-secondary small mb-2">Bitola anterior, recomendada e seguinte na tabela comercial.</p>
+              <p class="small mb-3" id="instalacao-info" hidden></p>
               <div class="table-responsive">
                 <table class="table table-dark table-hover align-middle mb-0">
                   <thead>

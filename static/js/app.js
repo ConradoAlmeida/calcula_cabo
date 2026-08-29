@@ -17,12 +17,16 @@
   form.querySelectorAll("input[type=number]").forEach((el) => {
     defaults[el.name] = el.value;
   });
+  const metodoEl = form.elements["metodo_instalacao"];
+  const metodoDefault = metodoEl ? metodoEl.value : null;
 
   function formData() {
     const data = {};
     form.querySelectorAll("input[type=number]").forEach((el) => {
       data[el.name] = el.value;
     });
+    const metodo = form.elements["metodo_instalacao"];
+    if (metodo) data["metodo_instalacao"] = metodo.value;
     return data;
   }
 
@@ -94,6 +98,16 @@
     badge.textContent = p.status;
     badge.className = "badge rounded-pill fs-6 " + (p.adequada ? "text-bg-success" : "text-bg-warning");
 
+    const info = document.getElementById("instalacao-info");
+    if (info && data.instalacao) {
+      const i = data.instalacao;
+      info.innerHTML =
+        'Instalação: <strong>' + i.rotulo + '</strong> · ' +
+        'condutores agrupados: <strong>' + i.n_condutores + '</strong> · ' +
+        'convecção efetiva: <strong>' + i.h_efetivo + ' W/(m²·°C)</strong>';
+      info.hidden = false;
+    }
+
     renderTermica(data.termicas);
     renderReferencia(data.referencia);
 
@@ -163,6 +177,7 @@
       if (el) el.value = defaults[name];
     });
     form.elements["diametro"].value = "";
+    if (metodoEl && metodoDefault !== null) metodoEl.value = metodoDefault;
     clearError();
     resultContent.hidden = true;
     emptyState.hidden = false;

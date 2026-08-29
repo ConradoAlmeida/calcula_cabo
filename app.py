@@ -16,8 +16,10 @@ from calcular_bitola_cabo_dc import (
     calcular_bitola_cb,
     calcular_queda_para_bitola,
     calcular_tempo_aquecimento,
+    coef_conveccao_efetivo,
     config_para_dict,
     gerar_nome_relatorio_por_inputs,
+    metodos_instalacao,
     mm2_para_awg,
     obter_bitolas_analise_termica,
     salvar_relatorio_txt,
@@ -66,6 +68,18 @@ def _parse_entradas(dados):
     if distancia <= 0 or corrente <= 0 or tensao <= 0 or queda_percentual <= 0:
         raise ValueError("Distância, corrente, tensão e queda devem ser maiores que zero.")
 
+    # Método de instalação (validado contra os métodos de config.ini).
+    metodo = str(dados.get("metodo_instalacao") or "").strip()
+    if metodo not in CFG.instalacao:
+        metodo = CFG.instalacao_padrao
+
+    # Número de condutores agrupados lado a lado.
+    try:
+        n_condutores = int(float(dados.get("n_condutores") or 1))
+    except (ValueError, TypeError):
+        n_condutores = 1
+    n_condutores = max(1, n_condutores)
+
     return {
         "distancia": distancia,
         "corrente": corrente,
@@ -74,6 +88,8 @@ def _parse_entradas(dados):
         "temp_max": temp_max,
         "temp_amb": temp_amb,
         "diametro": diametro,
+        "metodo_instalacao": metodo,
+        "n_condutores": n_condutores,
     }
 
 
@@ -115,6 +131,8 @@ def _calcular(entradas):
         "adequada": adequada,
     }
 
+    h_efetivo = coef_conveccao_efetivo(entradas["metodo_instalacao"], entradas["n_condutores"])
+
     linhas_termicas = []
     for bitola in obter_bitolas_analise_termica(resultado["bitola_recomendada"]):
         awg = mm2_para_awg(bitola)
@@ -123,7 +141,7 @@ def _calcular(entradas):
         )
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
-            entradas["temp_amb"], entradas["diametro"],
+            entradas["temp_amb"], entradas["diametro"], h_efetivo,
         )
         ok = queda["queda_tensao_percentual"] <= resultado["queda_maxima_percentual"]
         linhas_termicas.append({
@@ -138,17 +156,32 @@ def _calcular(entradas):
             "recomendada": bitola == resultado["bitola_recomendada"],
         })
 
+    instalacao = {
+        "metodo": entradas["metodo_instalacao"],
+        "rotulo": CFG.instalacao_rotulos.get(
+            entradas["metodo_instalacao"], entradas["metodo_instalacao"]
+        ),
+        "n_condutores": entradas["n_condutores"],
+        "h_efetivo": f"{h_efetivo:.2f}",
+    }
+
     return {
         "entradas": entradas,
         "principal": principal,
         "termicas": linhas_termicas,
         "referencia": _tabela_referencia(),
+        "instalacao": instalacao,
     }
 
 
 @app.route("/")
 def index():
-    return render_template("index.html", padroes=PADROES)
+    return render_template(
+        "index.html",
+        padroes=PADROES,
+        metodos=metodos_instalacao(),
+        metodo_padrao=CFG.instalacao_padrao,
+    )
 
 
 @app.route("/health")
@@ -207,6 +240,7 @@ def api_relatorio():
         status_queda,
     ]]
 
+    h_efetivo = coef_conveccao_efetivo(entradas["metodo_instalacao"], entradas["n_condutores"])
     linhas_termicas = []
     for bitola in obter_bitolas_analise_termica(resultado["bitola_recomendada"]):
         awg = mm2_para_awg(bitola)
@@ -215,7 +249,7 @@ def api_relatorio():
         )
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
-            entradas["temp_amb"], entradas["diametro"],
+            entradas["temp_amb"], entradas["diametro"], h_efetivo,
         )
         status_termico = "OK" if queda["queda_tensao_percentual"] <= resultado["queda_maxima_percentual"] else "QUEDA ALTA"
         linhas_termicas.append([
