@@ -1,5 +1,11 @@
 /* Complementos ao Bootstrap 5.3 (tema escuro). */
 
+/* Garante que o atributo `hidden` prevaleça sobre utilitários como
+   .d-flex/.spinner-border, que usam `display: ... !important`. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   min-height: 100vh;
   background:
