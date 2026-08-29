@@ -113,6 +113,19 @@ Todas as constantes físicas, as tabelas de conversão e os valores padrão de e
 | `[bitolas_comerciais]` | Lista de bitolas comerciais (mm²). |
 | `[conversao_awg]` | Tabela de conversão mm² → AWG/MCM. |
 | `[capacidade_corrente]` | Capacidade de corrente aproximada por bitola (tabela de referência). |
+| `[instalacao]` | Método de instalação → coeficiente de convecção efetivo (W/(m²·°C)); `padrao` define o método inicial. |
+| `[instalacao_rotulos]` | Rótulos exibidos na interface para cada método. |
+| `[agrupamento]` | Fator de convecção conforme o número de condutores agrupados lado a lado. |
+
+### Método de instalação e agrupamento
+
+A análise térmica considera **como** o cabo é instalado e **quantos** condutores estão agrupados, porque ambos afetam a dissipação de calor. O coeficiente de convecção efetivo é:
+
+```text
+h_efetivo = h(método de instalação) × fator(nº de condutores agrupados)
+```
+
+Um `h` menor (eletroduto embutido, enterrado, muitos condutores juntos) significa pior dissipação e, portanto, **temperatura mais alta**. Os métodos e fatores são totalmente configuráveis em `config.ini` e aparecem como um seletor e um campo numérico na interface web.
 
 Para conferir os números em uso a qualquer momento (via web), acesse `GET /api/config`, que devolve a configuração ativa em JSON.
 

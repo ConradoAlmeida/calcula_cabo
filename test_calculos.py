@@ -113,3 +113,54 @@ def test_override_tabela_awg(tmp_path):
         assert m.mm2_para_awg(4.0) == "TESTE"
     finally:
         m.CFG = cfg_original
+
+
+# --------------------------------------------------------------------------
+# Instalação + agrupamento (novos)
+# --------------------------------------------------------------------------
+def test_metodos_instalacao_carregados():
+    ids = {mt["id"] for mt in m.metodos_instalacao()}
+    assert {"ar_livre", "eletroduto_embutido", "enterrado"}.issubset(ids)
+
+
+def test_fator_agrupamento():
+    assert m.fator_agrupamento(1) == 1.0
+    assert m.fator_agrupamento(3) < 1.0
+    # acima do maior n definido, usa o último fator
+    assert m.fator_agrupamento(999) == m.fator_agrupamento(max(m.CFG.agrupamento))
+
+
+def test_coef_efetivo_pior_instalacao_menor_h():
+    ar = m.coef_conveccao_efetivo("ar_livre", 1)
+    enterrado = m.coef_conveccao_efetivo("enterrado", 1)
+    assert enterrado < ar
+
+
+def test_coef_efetivo_agrupamento_reduz_h():
+    h1 = m.coef_conveccao_efetivo("ar_livre", 1)
+    h4 = m.coef_conveccao_efetivo("ar_livre", 4)
+    assert h4 < h1
+
+
+def test_instalacao_pior_aquece_mais():
+    """Mesma corrente: eletroduto embutido deve resultar em T maior que ar livre."""
+    h_ar = m.coef_conveccao_efetivo("ar_livre", 1)
+    h_enc = m.coef_conveccao_efetivo("eletroduto_embutido", 1)
+    t_ar = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h_ar)
+    t_enc = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h_enc)
+    assert t_enc["temp_regimen_value"] > t_ar["temp_regimen_value"]
+
+
+def test_agrupamento_aquece_mais():
+    h1 = m.coef_conveccao_efetivo("ar_livre", 1)
+    h6 = m.coef_conveccao_efetivo("ar_livre", 6)
+    t1 = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h1)
+    t6 = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h6)
+    assert t6["temp_regimen_value"] > t1["temp_regimen_value"]
+
+
+def test_coef_conveccao_default_sem_argumento():
+    """Sem coef_conveccao explícito, usa o valor base de config.ini."""
+    t = m.calcular_tempo_aquecimento(2.5, 20, 200, 25)
+    esperado = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, m.CFG.coef_conveccao)
+    assert t["temp_regimen_value"] == esperado["temp_regimen_value"]
