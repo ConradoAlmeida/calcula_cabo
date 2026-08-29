@@ -1,0 +1,78 @@
+/* Complementos ao Bootstrap 5.3 (tema escuro). */
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(79, 140, 255, 0.16), transparent 60%),
+    radial-gradient(700px 420px at 0% 20%, rgba(124, 92, 255, 0.12), transparent 60%),
+    var(--bs-body-bg);
+  background-attachment: fixed;
+}
+
+.app-header .brand-mark {
+  font-size: 26px;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #4f8cff, #7c5cff);
+  box-shadow: 0 10px 28px rgba(79, 140, 255, 0.4);
+}
+
+/* Formulário fixo em telas grandes. */
+@media (min-width: 992px) {
+  .form-card {
+    position: sticky;
+    top: 20px;
+  }
+}
+
+/* Separador com rótulo central. */
+.section-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 1.25rem 0 1rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.section-divider::before,
+.section-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--bs-border-color);
+}
+.section-divider span {
+  padding: 0 0.75rem;
+}
+
+/* Card de destaque com leve gradiente. */
+.highlight-card {
+  background:
+    linear-gradient(135deg, rgba(79, 140, 255, 0.16), rgba(124, 92, 255, 0.08)),
+    var(--bs-card-bg);
+  border-color: rgba(120, 150, 255, 0.35);
+}
+
+.highlight-value {
+  font-size: 2.75rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.highlight-value .hl-unit {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--bs-secondary-color);
+  margin-left: 0.4rem;
+}
+
+@media (max-width: 575.98px) {
+  .highlight-value {
+    font-size: 2.1rem;
+  }
+}
