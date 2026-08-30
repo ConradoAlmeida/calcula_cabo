@@ -81,7 +81,14 @@ O `config.ini` do host é montado no container (somente leitura). Edite-o para r
 
 ### moyaserver (produção)
 
-Repositório no Gitea: `ssh://git@moya-git.local:222/moya-dev/calcula_cabo.git`
+Repositório espelhado no Gitea: `ssh://git@moya-git.local:222/moya-dev/calcula_cabo.git`  
+(mirror read-only do GitHub; o push de desenvolvimento vai para `origin` no GitHub.)
+
+Fluxo:
+
+1. **Development:** `git push origin master` (GitHub)
+2. **Gitea:** sincroniza o mirror (automático ou manual em *Sync Mirror* no Gitea)
+3. **moyaserver:** `git pull` + rebuild abaixo
 
 A porta **8000** do host já é usada pelo Portainer; use o overlay `docker-compose.moya.yml` (publica em **8030**):
 
@@ -97,6 +104,8 @@ Atualizar:
 git pull
 docker compose -f docker-compose.yml -f docker-compose.moya.yml up -d --build
 ```
+
+Após push no GitHub, aguarde o mirror do Gitea ou dispare *Sync Mirror* antes do `git pull` no servidor.
 
 Acesso interno: `http://moya-calcula-cabo.local` (via Caddy no moyaserver).
 
