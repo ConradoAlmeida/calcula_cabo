@@ -123,7 +123,10 @@ A análise térmica considera **como** o cabo é instalado e **quantos** conduto
 
 ```text
 h_efetivo = h(método de instalação) × fator(nº de condutores agrupados)
+área_efetiva = área_lateral × fator(nº de condutores agrupados)
 ```
+
+O fator reduz tanto a convecção quanto a superfície exposta no feixe — equivalente ao derating de ampacidade em agrupamentos.
 
 Um `h` menor (eletroduto embutido, enterrado, muitos condutores juntos) significa pior dissipação e, portanto, **temperatura mais alta**. Os métodos e fatores são totalmente configuráveis em `config.ini` e aparecem como um seletor e um campo numérico na interface web.
 

@@ -340,6 +340,7 @@ def calcular_equilibrio_termico(
     comprimento=1.0,
     temp_limite=None,
     cfg=None,
+    fator_superficie=1.0,
 ):
     """Resolve T de regime com realimentação ρ(T) → P → T.
 
@@ -349,7 +350,10 @@ def calcular_equilibrio_termico(
     """
     cfg = cfg or CFG
 
-    if area_lateral <= 0 or h_conveccao <= 0 or bitola <= 0:
+    fator_superficie = max(0.01, float(fator_superficie or 1.0))
+    area_efetiva = area_lateral * fator_superficie
+
+    if area_efetiva <= 0 or h_conveccao <= 0 or bitola <= 0:
         return {
             "temp_regimen": float("inf"),
             "potencia_gerada": 0.0,
@@ -363,7 +367,7 @@ def calcular_equilibrio_termico(
 
     resistencia_ref = (rho0 * comprimento) / bitola
     potencia_ref = (corrente ** 2) * resistencia_ref
-    k_delta = potencia_ref / (h_conveccao * area_lateral)
+    k_delta = potencia_ref / (h_conveccao * area_efetiva)
     ka = k_delta * alpha
 
     if ka >= 1.0:
@@ -426,12 +430,13 @@ def temperatura_regime_para_bitola(
     diametro_externo=None,
     temp_limite=None,
     cfg=None,
+    fator_superficie=1.0,
 ):
     """Retorna o equilíbrio térmico (T_regime, P, ρ) para uma bitola."""
     _, area_lateral = parametros_dissipacao(bitola, diametro_externo, cfg=cfg)
     return calcular_equilibrio_termico(
         bitola, corrente, temp_ambiente, h_conveccao, area_lateral,
-        1.0, temp_limite, cfg,
+        1.0, temp_limite, cfg, fator_superficie=fator_superficie,
     )
 
 
@@ -444,6 +449,7 @@ def _temperatura_para_queda(
     diametro_externo,
     temp_limite,
     cfg,
+    fator_superficie=1.0,
 ):
     """Resolve a temperatura usada em ρ(T) para o cálculo de queda."""
     if temperatura_operacao is not None:
@@ -453,6 +459,7 @@ def _temperatura_para_queda(
         equilibrio = temperatura_regime_para_bitola(
             bitola, corrente, temp_ambiente, h_conveccao,
             diametro_externo, temp_limite, cfg,
+            fator_superficie=fator_superficie,
         )
         temp = equilibrio["temp_regimen"]
         if temp == float("inf"):
@@ -475,6 +482,7 @@ def calcular_queda_para_bitola(
     diametro_externo=None,
     temp_limite=None,
     cfg=None,
+    fator_superficie=1.0,
 ):
     """Calcula queda de tensão para uma bitola específica.
 
@@ -486,6 +494,7 @@ def calcular_queda_para_bitola(
     temp = _temperatura_para_queda(
         temperatura_operacao, bitola, corrente, temp_ambiente,
         h_conveccao, diametro_externo, temp_limite, cfg,
+        fator_superficie=fator_superficie,
     )
     resistividade = resistividade_em_temperatura(temp, cfg)
     resistencia = (resistividade * comprimento_total) / bitola
@@ -511,6 +520,7 @@ def calcular_queda_comparativa(
     diametro_externo=None,
     temp_limite=None,
     cfg=None,
+    fator_superficie=1.0,
 ):
     """Calcula queda de tensão na largada (T ambiente) e em regime (T final).
 
@@ -533,6 +543,7 @@ def calcular_queda_comparativa(
             diametro_externo=diametro_externo,
             temp_limite=temp_limite,
             cfg=cfg,
+            fator_superficie=fator_superficie,
         )
     else:
         queda_final = queda_inicial
@@ -569,6 +580,7 @@ def calcular_bitola_cb(
     coef_conveccao=None,
     diametro_externo=None,
     temp_maxima=None,
+    fator_superficie=1.0,
 ):
     """
     Calcula a bitola ideal do cabo baseado em:
@@ -626,6 +638,7 @@ def calcular_bitola_cb(
                 h_conveccao=coef_conveccao,
                 diametro_externo=diametro_externo,
                 temp_limite=temp_maxima,
+                fator_superficie=fator_superficie,
             )
             queda_volts = queda_cmp["queda_final_volts"]
         else:
@@ -658,6 +671,7 @@ def calcular_bitola_cb(
                 h_conveccao=coef_conveccao,
                 diametro_externo=diametro_externo,
                 temp_limite=temp_maxima,
+                fator_superficie=fator_superficie,
             )
             temperatura_operacao = queda_escolhida["temperatura_final"]
             resistividade_operacao = resistividade_em_temperatura(temperatura_operacao)
@@ -706,7 +720,7 @@ def calcular_bitola_cb(
     }
 
 
-def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, diametro_externo=None, coef_conveccao=None):
+def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, diametro_externo=None, coef_conveccao=None, fator_superficie=1.0):
     """
     Calcula o tempo para o cabo alcançar a temperatura máxima suportada.
     
@@ -752,6 +766,9 @@ def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, 
     volume_cobre = area_cobre * comprimento
     massa_cobre = volume_cobre * densidade_cobre
     
+    fator_superficie = max(0.01, float(fator_superficie or 1.0))
+    area_efetiva = area_lateral * fator_superficie
+
     # Coeficiente de transferência térmica por convecção efetivo.
     h_conveccao = coef_conveccao if coef_conveccao is not None else CFG.coef_conveccao  # W/(m²·°C)
 
@@ -759,6 +776,7 @@ def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, 
     equilibrio = calcular_equilibrio_termico(
         bitola, corrente, temp_ambiente, h_conveccao, area_lateral,
         comprimento, temp_maxima, CFG,
+        fator_superficie=fator_superficie,
     )
     temp_regimen = equilibrio["temp_regimen"]
     potencia_gerada = equilibrio["potencia_gerada"]
@@ -782,7 +800,7 @@ def calcular_tempo_aquecimento(bitola, corrente, temp_maxima, temp_ambiente=25, 
     if temp_regimen <= temp_maxima:
         # O cabo nunca atingirá a temperatura máxima
         # Usar modelo exponencial: T(t) = T_amb + (P/hA) × (1 - e^(-t/τ))
-        tau = capacidade_termica / (h_conveccao * area_lateral)  # constante de tempo
+        tau = capacidade_termica / (h_conveccao * area_efetiva)  # constante de tempo
         
         # Isolando t: t = -τ × ln(1 - ΔT/ΔT_regime)
         delta_regime = temp_regimen - temp_ambiente
@@ -894,6 +912,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     metodo_id = entradas.get("metodo_instalacao", cfg.instalacao_padrao)
     metodo_rotulo = cfg.instalacao_rotulos.get(metodo_id, metodo_id)
     n_cond = entradas.get("n_condutores", 1)
+    fator_sup = fator_agrupamento(n_cond, cfg)
 
     comprimento = resultado["comprimento_total"]
     v_queda_max = resultado["queda_maxima_permitida"]
@@ -919,6 +938,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             {"rotulo": "Método de instalação", "valor": metodo_rotulo},
             {"rotulo": "Condutores agrupados", "valor": str(n_cond)},
             {"rotulo": "Coeficiente de convecção efetivo", "valor": f"{_fmt(h_efetivo)} W/(m²·°C)"},
+            {"rotulo": "Fator de superfície exposta (agrupamento)", "valor": _fmt(fator_sup, 2)},
             {
                 "rotulo": "Diâmetro externo",
                 "valor": f"{_fmt(diametro_in)} mm" if diametro_in else "estimado a partir da bitola",
@@ -1001,6 +1021,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
         bitola, comprimento, corrente, tensao,
         temp_ambiente=temp_amb, h_conveccao=h_efetivo,
         diametro_externo=diametro_in, temp_limite=temp_max, cfg=cfg,
+        fator_superficie=fator_sup,
     )
     rho_ini = resistividade_em_temperatura(queda["temperatura_inicial"], cfg)
     rho_fin = resistividade_em_temperatura(queda["temperatura_final"], cfg)
@@ -1036,16 +1057,19 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     })
 
     diametro_ext, area_lat = parametros_dissipacao(bitola, diametro_in, cfg=cfg)
+    area_lat_efetiva = area_lat * fator_sup
     equilibrio = temperatura_regime_para_bitola(
         bitola, corrente, temp_amb, h_efetivo, diametro_in, temp_max, cfg,
+        fator_superficie=fator_sup,
     )
     termico = calcular_tempo_aquecimento(
         bitola, corrente, temp_max, temp_amb, diametro_in, h_efetivo,
+        fator_superficie=fator_sup,
     )
 
     rho_ref = (rho0 * 1.0) / bitola
     p_ref = (corrente ** 2) * rho_ref
-    k_delta = p_ref / (h_efetivo * area_lat) if area_lat > 0 else 0
+    k_delta = p_ref / (h_efetivo * area_lat_efetiva) if area_lat_efetiva > 0 else 0
     ka = k_delta * alpha
 
     passos_term = [
@@ -1054,7 +1078,8 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             "formula": "área lateral ≈ π × D_ext × L",
             "calculo": (
                 f"D_ext ≈ {_fmt(diametro_ext)} mm · área dissipação ≈ "
-                f"{_fmt(area_lat, 6)} m²"
+                f"{_fmt(area_lat, 6)} m² · área efetiva (agrupamento) ≈ "
+                f"{_fmt(area_lat_efetiva, 6)} m²"
             ),
         },
         {
@@ -1106,9 +1131,11 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             b, comprimento, corrente, tensao,
             temp_ambiente=temp_amb, h_conveccao=h_efetivo,
             diametro_externo=diametro_in, temp_limite=temp_max, cfg=cfg,
+            fator_superficie=fator_sup,
         )
         t = calcular_tempo_aquecimento(
             b, corrente, temp_max, temp_amb, diametro_in, h_efetivo,
+            fator_superficie=fator_sup,
         )
         comparativo.append({
             "bitola": f"{_fmt(b)} mm²",
@@ -1135,27 +1162,27 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             ),
             "mermaid": (
                 "flowchart TD\n"
-                "    subgraph entradas [Entradas do usuario]\n"
-                "        IN1[Distancia corrente tensao]\n"
-                "        IN2[Temp ambiente e instalacao]\n"
+                "    subgraph sg_entradas [Entradas do usuario]\n"
+                "        IN1[\"Distancia, corrente, tensao\"]\n"
+                "        IN2[\"Temp ambiente e instalacao\"]\n"
                 "    end\n"
-                "    subgraph dimensionamento [Dimensionamento]\n"
-                "        D1[L = 2 x distancia]\n"
-                "        D2[Bitola com Vdrop T.final dentro do limite]\n"
+                "    subgraph sg_dimensionamento [Dimensionamento]\n"
+                "        D1[\"L = 2 x distancia\"]\n"
+                "        D2[\"Bitola com Vdrop T final dentro do limite\"]\n"
                 "    end\n"
-                "    subgraph vdropFluxo [Queda de tensao]\n"
-                "        V1[Vdrop inicial: rho a T amb]\n"
-                "        V2[Vdrop T.final: rho a T regime]\n"
+                "    subgraph sg_vdrop [Queda de tensao]\n"
+                "        V1[\"Vdrop inicial: rho a T amb\"]\n"
+                "        V2[\"Vdrop T final: rho a T regime\"]\n"
                 "    end\n"
-                "    subgraph termicoLoop [Realimentacao termica]\n"
-                "        T1[rho T] --> T2[P = I2 x R]\n"
-                "        T2 --> T3[T_regime = T_amb + P/hA]\n"
+                "    subgraph sg_termico [Realimentacao termica]\n"
+                "        T1[\"rho de T\"] --> T2[\"P = I ao quadrado x R\"]\n"
+                "        T2 --> T3[\"T regime = T amb + P sobre hA\"]\n"
                 "        T3 --> T1\n"
                 "    end\n"
-                "    entradas --> dimensionamento\n"
-                "    dimensionamento --> vdropFluxo\n"
-                "    entradas --> termicoLoop\n"
-                "    termicoLoop --> vdropFluxo"
+                "    sg_entradas --> sg_dimensionamento\n"
+                "    sg_dimensionamento --> sg_vdrop\n"
+                "    sg_entradas --> sg_termico\n"
+                "    sg_termico --> sg_vdrop"
             ),
         },
         {
@@ -1167,17 +1194,17 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             ),
             "mermaid": (
                 "flowchart TD\n"
-                "    subgraph modeloFixo [Sem rho T na queda]\n"
-                "        A1[rho = rho0 fixo] --> B1[P = I2R]\n"
-                "        B1 --> C1[T_regime = T_amb + P/hA]\n"
+                "    subgraph sg_fixo [Sem rho T na queda]\n"
+                "        A1[\"rho = rho0 fixo\"] --> B1[\"P = I ao quadrado x R\"]\n"
+                "        B1 --> C1[\"T regime = T amb + P sobre hA\"]\n"
                 "    end\n"
-                "    subgraph modeloRealim [Modelo adotado]\n"
-                "        A2[T de operacao] --> B2[rho T]\n"
-                "        B2 --> C2[P = I2 x rho T x L/S]\n"
-                "        C2 --> D2[T_novo = T_amb + P/hA]\n"
-                "        D2 --> E2{Convergiu?}\n"
+                "    subgraph sg_realim [Modelo adotado]\n"
+                "        A2[\"T de operacao\"] --> B2[\"rho de T\"]\n"
+                "        B2 --> C2[\"P = I ao quadrado x rho T x L sobre S\"]\n"
+                "        C2 --> D2[\"T novo = T amb + P sobre hA\"]\n"
+                "        D2 --> E2{\"Convergiu\"}\n"
                 "        E2 -->|nao| A2\n"
-                "        E2 -->|sim| F2[T_regime e Vdrop T.final]\n"
+                "        E2 -->|sim| F2[\"T regime e Vdrop T final\"]\n"
                 "    end"
             ),
         },
@@ -1375,6 +1402,9 @@ def main():
                     print("\nNenhum calculo executado. Relatorio existente reaproveitado.")
                     return
 
+        fator_sup = fator_agrupamento(
+            dados_entrada.get('n_condutores', 1),
+        )
         h_efetivo = coef_conveccao_efetivo(
             dados_entrada.get('metodo_instalacao', CFG.instalacao_padrao),
             dados_entrada.get('n_condutores', 1),
@@ -1385,6 +1415,7 @@ def main():
             distancia, corrente, tensao, queda_percentual,
             temp_ambiente=temp_amb, coef_conveccao=h_efetivo,
             diametro_externo=diametro, temp_maxima=temp_max,
+            fator_superficie=fator_sup,
         )
 
         # Tabela resumo do cálculo principal
@@ -1422,9 +1453,11 @@ def main():
                 bitola, resultado['comprimento_total'], corrente, tensao,
                 temp_ambiente=temp_amb, h_conveccao=h_efetivo,
                 diametro_externo=diametro, temp_limite=temp_max,
+                fator_superficie=fator_sup,
             )
             termico = calcular_tempo_aquecimento(
                 bitola, corrente, temp_max, temp_amb, diametro, h_efetivo,
+                fator_superficie=fator_sup,
             )
 
             if queda['queda_final_percentual'] <= resultado['queda_maxima_percentual']:

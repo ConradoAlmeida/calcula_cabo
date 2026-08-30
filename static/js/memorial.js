@@ -2,6 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "calc_memorial_payload";
+  let mermaidReady = false;
 
   function escapeHtml(text) {
     return String(text)
@@ -85,9 +86,7 @@
         <div class="card-body">
           <h2 class="h5 mb-2">${escapeHtml(d.titulo)}</h2>
           ${d.descricao ? '<p class="text-body-secondary small mb-3">' + escapeHtml(d.descricao) + "</p>" : ""}
-          <div class="memorial-mermaid-wrap">
-            <pre class="mermaid" id="${escapeHtml(id)}"></pre>
-          </div>
+          <div class="memorial-mermaid-wrap" id="wrap-${escapeHtml(id)}"></div>
         </div>
       </section>`;
     });
@@ -114,37 +113,49 @@
       </section>`;
   }
 
+  function ensureMermaid() {
+    if (mermaidReady || typeof mermaid === "undefined") return;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "dark",
+      securityLevel: "loose",
+      flowchart: { htmlLabels: true, curve: "basis" },
+    });
+    mermaidReady = true;
+  }
+
   async function renderMermaidDiagrams(nodes) {
     if (!nodes.length) return;
 
-    const preElements = nodes.map((n) => {
-      const el = document.getElementById(n.id);
-      if (el) el.textContent = n.source;
-      return el;
-    }).filter(Boolean);
-
-    if (!preElements.length) return;
-
     if (typeof mermaid === "undefined") {
-      preElements.forEach((el) => {
-        el.classList.add("memorial-mermaid-fallback");
+      nodes.forEach((n) => {
+        const wrap = document.getElementById("wrap-" + n.id);
+        if (wrap) {
+          wrap.innerHTML =
+            '<pre class="memorial-mermaid-fallback">' + escapeHtml(n.source) + "</pre>";
+        }
       });
       return;
     }
 
-    try {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: "dark",
-        securityLevel: "loose",
-        flowchart: { htmlLabels: true, curve: "basis" },
-      });
-      await mermaid.run({ nodes: preElements });
-    } catch (err) {
-      console.warn("Mermaid indisponível; exibindo texto do diagrama.", err);
-      preElements.forEach((el) => {
-        el.classList.add("memorial-mermaid-fallback");
-      });
+    ensureMermaid();
+
+    for (const n of nodes) {
+      const wrap = document.getElementById("wrap-" + n.id);
+      if (!wrap) continue;
+
+      try {
+        const renderId = "render-" + n.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+        const result = await mermaid.render(renderId, n.source);
+        wrap.innerHTML = result.svg;
+        if (typeof result.bindFunctions === "function") {
+          result.bindFunctions(wrap);
+        }
+      } catch (err) {
+        console.warn("Mermaid indisponível para", n.id, err);
+        wrap.innerHTML =
+          '<pre class="memorial-mermaid-fallback">' + escapeHtml(n.source) + "</pre>";
+      }
     }
   }
 

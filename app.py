@@ -18,6 +18,7 @@ from calcular_bitola_cabo_dc import (
     calcular_tempo_aquecimento,
     coef_conveccao_efetivo,
     config_para_dict,
+    fator_agrupamento,
     gerar_memorial_calculo,
     gerar_nome_relatorio_por_inputs,
     metodos_instalacao,
@@ -110,6 +111,7 @@ def _tabela_referencia():
 
 def _calcular(entradas):
     """Executa o dimensionamento e a analise termica, retornando dados prontos p/ UI."""
+    fator_sup = fator_agrupamento(entradas["n_condutores"])
     h_efetivo = coef_conveccao_efetivo(entradas["metodo_instalacao"], entradas["n_condutores"])
 
     resultado = calcular_bitola_cb(
@@ -121,6 +123,7 @@ def _calcular(entradas):
         coef_conveccao=h_efetivo,
         diametro_externo=entradas["diametro"],
         temp_maxima=entradas["temp_max"],
+        fator_superficie=fator_sup,
     )
 
     adequada = resultado["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
@@ -153,10 +156,12 @@ def _calcular(entradas):
             h_conveccao=h_efetivo,
             diametro_externo=entradas["diametro"],
             temp_limite=entradas["temp_max"],
+            fator_superficie=fator_sup,
         )
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], entradas["diametro"], h_efetivo,
+            fator_superficie=fator_sup,
         )
         ok = queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
         alerta = termico["alerta_termico"]
@@ -203,6 +208,7 @@ def _calcular(entradas):
         ),
         "n_condutores": entradas["n_condutores"],
         "h_efetivo": f"{h_efetivo:.2f}",
+        "fator_superficie": f"{fator_sup:.2f}",
     }
 
     memorial = gerar_memorial_calculo(entradas, resultado, h_efetivo)
@@ -287,6 +293,7 @@ def api_relatorio():
 
     incluir_ref = str(dados.get("incluir_referencia", "")).lower() in ("1", "true", "s", "on", "sim")
 
+    fator_sup = fator_agrupamento(entradas["n_condutores"])
     h_efetivo = coef_conveccao_efetivo(entradas["metodo_instalacao"], entradas["n_condutores"])
     resultado = calcular_bitola_cb(
         entradas["distancia"], entradas["corrente"],
@@ -295,6 +302,7 @@ def api_relatorio():
         coef_conveccao=h_efetivo,
         diametro_externo=entradas["diametro"],
         temp_maxima=entradas["temp_max"],
+        fator_superficie=fator_sup,
     )
     adequada = resultado["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
     status_queda = "ADEQUADA" if adequada else "ACIMA DO LIMITE"
@@ -319,10 +327,12 @@ def api_relatorio():
             h_conveccao=h_efetivo,
             diametro_externo=entradas["diametro"],
             temp_limite=entradas["temp_max"],
+            fator_superficie=fator_sup,
         )
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], entradas["diametro"], h_efetivo,
+            fator_superficie=fator_sup,
         )
         status_termico = "OK" if queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"] else "QUEDA ALTA"
         margem = termico["margem_termica_celsius"]

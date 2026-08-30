@@ -213,11 +213,25 @@ def test_instalacao_pior_aquece_mais():
 
 
 def test_agrupamento_aquece_mais():
+    f1 = m.fator_agrupamento(1)
+    f6 = m.fator_agrupamento(6)
     h1 = m.coef_conveccao_efetivo("ar_livre", 1)
     h6 = m.coef_conveccao_efetivo("ar_livre", 6)
-    t1 = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h1)
-    t6 = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h6)
+    t1 = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h1, f1)
+    t6 = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h6, f6)
     assert t6["temp_regimen_value"] > t1["temp_regimen_value"]
+
+
+def test_agrupamento_diferenca_visivel_baixa_corrente():
+    """Com pouco aquecimento, 8 condutores devem elevar T_regime de forma perceptível."""
+    f1 = m.fator_agrupamento(1)
+    f8 = m.fator_agrupamento(8)
+    h1 = m.coef_conveccao_efetivo("ar_livre", 1)
+    h8 = m.coef_conveccao_efetivo("ar_livre", 8)
+    t1 = m.calcular_tempo_aquecimento(1.5, 1, 200, 25, None, h1, f1)
+    t8 = m.calcular_tempo_aquecimento(1.5, 1, 200, 25, None, h8, f8)
+    delta = t8["temp_regimen_value"] - t1["temp_regimen_value"]
+    assert delta >= 0.05
 
 
 def test_memorial_contem_secoes_principais():
