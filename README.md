@@ -69,25 +69,22 @@ uv run gunicorn --bind 0.0.0.0:8000 --workers 2 app:app
 
 O Bootstrap é servido localmente (`static/vendor/bootstrap/`), então a interface funciona sem acesso à internet.
 
-## Deploy com Docker / Podman
+## Docker
 
-O projeto inclui um `Dockerfile` (imagem base `ghcr.io/astral-sh/uv:python3.14-bookworm-slim`, servida por gunicorn como usuário sem privilégios).
+```bash
+docker compose up -d --build
+```
 
-### Docker
+Acessar em `http://<ip-do-host>:8000`.
+
+O `config.ini` do host é montado no container (somente leitura). Edite-o para recalibrar sem rebuild.
+
+### Build manual (sem Compose)
 
 ```bash
 docker build -t calcula-cabo .
-docker run --rm -p 8000:8000 calcula-cabo
+docker run --rm -p 8000:8000 -v ./config.ini:/app/config.ini:ro calcula-cabo
 ```
-
-### Podman
-
-```bash
-podman build -t calcula-cabo .
-podman run --rm -p 8000:8000 calcula-cabo
-```
-
-Depois, acesse `http://localhost:8000`.
 
 ## Dados de entrada
 
@@ -262,6 +259,7 @@ calcula_cabo/
 │   └── vendor/bootstrap/        # Bootstrap 5.3 servido localmente
 ├── main.py                      # ponto de entrada gerado pelo uv
 ├── Dockerfile                   # imagem de container (gunicorn)
+├── docker-compose.yml           # build e deploy conteinerizado
 ├── .dockerignore
 ├── pyproject.toml
 ├── uv.lock

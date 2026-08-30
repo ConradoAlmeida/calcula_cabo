@@ -1,0 +1,9 @@
+services:
+  calcula-cabo:
+    build: .
+    container_name: moya-calcula-cabo
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config.ini:/app/config.ini:ro
+    restart: unless-stopped
