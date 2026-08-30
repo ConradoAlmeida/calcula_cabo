@@ -1,0 +1,5 @@
+# Overlay for moyaserver: host port 8000 is used by Portainer.
+services:
+  calcula-cabo:
+    ports:
+      - "8030:8000"

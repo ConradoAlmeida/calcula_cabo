@@ -79,6 +79,27 @@ Acessar em `http://<ip-do-host>:8000`.
 
 O `config.ini` do host é montado no container (somente leitura). Edite-o para recalibrar sem rebuild.
 
+### moyaserver (produção)
+
+Repositório no Gitea: `ssh://git@moya-git.local:222/moya-dev/calcula_cabo.git`
+
+A porta **8000** do host já é usada pelo Portainer; use o overlay `docker-compose.moya.yml` (publica em **8030**):
+
+```bash
+git clone ssh://git@moya-git.local:222/moya-dev/calcula_cabo.git
+cd calcula_cabo
+docker compose -f docker-compose.yml -f docker-compose.moya.yml up -d --build
+```
+
+Atualizar:
+
+```bash
+git pull
+docker compose -f docker-compose.yml -f docker-compose.moya.yml up -d --build
+```
+
+Acesso interno: `http://moya-calcula-cabo.local` (via Caddy no moyaserver).
+
 ### Build manual (sem Compose)
 
 ```bash
