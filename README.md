@@ -108,7 +108,7 @@ Todas as constantes físicas, as tabelas de conversão e os valores padrão de e
 
 | Seção | Conteúdo |
 | --- | --- |
-| `[fisica]` | Resistividade do cobre (Ω·mm²/m), densidade (kg/m³), calor específico (J/(kg·°C)), coeficiente de convecção (W/(m²·°C)) e espessura de isolação (mm). |
+| `[fisica]` | Resistividade do cobre (Ω·mm²/m) a `T₀`, temperatura de referência `T₀` (°C), coeficiente de temperatura α₀ (1/°C), densidade (kg/m³), calor específico (J/(kg·°C)), coeficiente de convecção (W/(m²·°C)) e espessura de isolação (mm). |
 | `[padroes]` | Valores fixos de entrada usados quando um campo é deixado em branco. |
 | `[bitolas_comerciais]` | Lista de bitolas comerciais (mm²). |
 | `[conversao_awg]` | Tabela de conversão mm² → AWG/MCM. |
@@ -133,11 +133,26 @@ Para conferir os números em uso a qualquer momento (via web), acesse `GET /api/
 
 ### Queda de tensão
 
-Resistividade do cobre a 20 °C:
+Resistividade do cobre a 20 °C (usada no dimensionamento por queda de tensão):
 
 ```text
-ρ = 0,0175 Ω·mm²/m
+ρ₀ = 0,0175 Ω·mm²/m
 ```
+
+Na **análise térmica**, a resistividade varia com a temperatura de operação:
+
+```text
+ρ(T) = ρ₀ · (1 + α₀ · (T − T₀))
+```
+
+com `T₀ = 20 °C` e `α₀ ≈ 0,00393 /°C` (configurável em `config.ini`). O modelo resolve o equilíbrio com realimentação: quanto mais quente o cabo, maior ρ e maior potência dissipada — até convergir em `T_regime` ou indicar runaway térmico (sem equilíbrio finito).
+
+O dimensionamento por queda de tensão usa ρ(T) em regime quando os parâmetros térmicos estão disponíveis. A interface mostra:
+
+- **Vdrop inicial**: queda com o cabo frio (T ambiente) — valor na largada.
+- **Vdrop T. final**: queda em regime permanente, com ρ(T_regime) e realimentação térmica — até onde a queda pode chegar em operação.
+
+O limite de queda percentual é verificado contra o **Vdrop T. final** (pior caso em operação).
 
 Comprimento total (ida e volta):
 
@@ -159,11 +174,12 @@ A bitola comercial escolhida é a primeira da tabela maior ou igual a `S`. Com e
 
 Para a bitola recomendada e as vizinhas imediatas, o programa estima:
 
-- potência dissipada por efeito Joule (W/m)
-- temperatura de regime em ar parado
+- potência dissipada por efeito Joule (W/m), com ρ(T) em regime
+- temperatura de regime com realimentação térmica (ρ sobe com T)
+- margem térmica até a temperatura máxima da isolação
 - tempo aproximado até atingir a temperatura máxima do cabo
 
-O modelo térmico é uma **aproximação** (convecção com `h = 10 W/(m²·°C)`). Não substitui tabelas de capacidade de corrente nem normas de instalação.
+O modelo térmico é uma **aproximação** (convecção configurável por método de instalação). Não substitui tabelas de capacidade de corrente nem normas de instalação.
 
 ### Bitolas comerciais
 

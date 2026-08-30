@@ -71,3 +71,83 @@ body {
     font-size: 2.1rem;
   }
 }
+
+/* Destaque térmico na tabela comparativa. */
+tr.termica-atencao td:nth-child(6),
+tr.termica-atencao td:nth-child(7) {
+  color: #ffc107;
+  font-weight: 600;
+}
+
+tr.termica-critico td:nth-child(6),
+tr.termica-critico td:nth-child(7) {
+  color: #ff6b6b;
+  font-weight: 700;
+}
+
+tr.termica-atencao td:nth-child(4),
+tr.termica-critico td:nth-child(4) {
+  font-weight: 600;
+}
+
+/* Memorial de cálculo */
+.memorial-secao .card-body {
+  padding: 1.25rem 1.5rem;
+}
+
+.memorial-dl dt {
+  font-weight: 500;
+}
+
+.memorial-passos {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.memorial-passo {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.memorial-passo-num {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: rgba(79, 140, 255, 0.2);
+  color: #8cb4ff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.memorial-formula {
+  margin: 0.35rem 0;
+  font-size: 0.9rem;
+}
+
+.memorial-calculo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--bs-secondary-color);
+  word-break: break-word;
+}
+
+@media print {
+  .btn,
+  header .btn {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .card {
+    border: 1px solid #ccc !important;
+    break-inside: avoid;
+  }
+}

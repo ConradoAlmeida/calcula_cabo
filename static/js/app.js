@@ -5,6 +5,7 @@
   const btnCalcular = document.getElementById("btn-calcular");
   const btnReset = document.getElementById("btn-reset");
   const btnDownload = document.getElementById("btn-download");
+  const btnMemorial = document.getElementById("btn-memorial");
   const btnToggleRef = document.getElementById("btn-toggle-ref");
   const errorBox = document.getElementById("error-box");
   const emptyState = document.getElementById("empty-state");
@@ -19,6 +20,7 @@
   });
   const metodoEl = form.elements["metodo_instalacao"];
   const metodoDefault = metodoEl ? metodoEl.value : null;
+  const MEMORIAL_KEY = "calc_memorial_payload";
 
   function formData() {
     const data = {};
@@ -27,6 +29,8 @@
     });
     const metodo = form.elements["metodo_instalacao"];
     if (metodo) data["metodo_instalacao"] = metodo.value;
+    const nCond = form.elements["n_condutores"];
+    if (nCond) data["n_condutores"] = nCond.value;
     return data;
   }
 
@@ -50,18 +54,25 @@
     return `<span class="badge rounded-pill ${ok ? "text-bg-success" : "text-bg-warning"}">${status}</span>`;
   }
 
+  function termicaRowClass(alerta) {
+    if (alerta === "critico") return "termica-critico";
+    if (alerta === "atencao") return "termica-atencao";
+    return "";
+  }
+
   function renderTermica(rows) {
     const body = document.getElementById("termica-body");
     body.innerHTML = rows
       .map(
         (r) => `
-      <tr class="${r.recomendada ? "table-primary" : ""}">
+      <tr class="${r.recomendada ? "table-primary" : ""} ${termicaRowClass(r.alerta_termico)}">
         <td>${r.bitola}</td>
         <td>${r.awg}</td>
-        <td>${r.queda_volts}</td>
-        <td>${r.queda_percentual}</td>
+        <td>${r.queda_inicial_volts} V (${r.queda_inicial_percentual}%)</td>
+        <td>${r.queda_final_volts} V (${r.queda_final_percentual}%)</td>
         <td>${r.potencia}</td>
         <td>${r.temp_regime}</td>
+        <td>${r.margem_termica}</td>
         <td>${r.tempo_minutos}</td>
         <td>${pill(r.status)}</td>
       </tr>`
@@ -89,14 +100,29 @@
     document.getElementById("hl-bitola").textContent = p.bitola_recomendada;
     document.getElementById("hl-awg").textContent = p.bitola_awg;
     document.getElementById("hl-secao").textContent = p.secao_calculada;
-    document.getElementById("hl-queda-v").textContent = p.queda_tensao_volts;
-    document.getElementById("hl-queda-p").textContent = p.queda_tensao_percentual;
+    document.getElementById("hl-queda-ini-v").textContent = p.queda_inicial_volts;
+    document.getElementById("hl-queda-ini-p").textContent = p.queda_inicial_percentual;
+    document.getElementById("hl-queda-fin-v").textContent = p.queda_final_volts;
+    document.getElementById("hl-queda-fin-p").textContent = p.queda_final_percentual;
     document.getElementById("hl-limite").textContent = p.queda_maxima_percentual;
     document.getElementById("hl-comp").textContent = p.comprimento_total;
 
     const badge = document.getElementById("status-badge");
     badge.textContent = p.status;
     badge.className = "badge rounded-pill fs-6 " + (p.adequada ? "text-bg-success" : "text-bg-warning");
+
+    const alertaBox = document.getElementById("alerta-termico-box");
+    if (alertaBox) {
+      if (p.alerta_termico_msg) {
+        alertaBox.textContent = p.alerta_termico_msg;
+        alertaBox.className =
+          "alert py-2 px-3 mt-3 mb-0 small " +
+          (p.alerta_termico === "critico" ? "alert-danger" : "alert-warning");
+        alertaBox.hidden = false;
+      } else {
+        alertaBox.hidden = true;
+      }
+    }
 
     const info = document.getElementById("instalacao-info");
     if (info && data.instalacao) {
@@ -110,6 +136,18 @@
 
     renderTermica(data.termicas);
     renderReferencia(data.referencia);
+
+    if (data.memorial) {
+      sessionStorage.setItem(
+        MEMORIAL_KEY,
+        JSON.stringify({
+          memorial: data.memorial,
+          principal: data.principal,
+          entradas: data.entradas,
+        })
+      );
+      if (btnMemorial) btnMemorial.hidden = false;
+    }
 
     emptyState.hidden = true;
     resultContent.hidden = false;
@@ -178,6 +216,8 @@
     });
     form.elements["diametro"].value = "";
     if (metodoEl && metodoDefault !== null) metodoEl.value = metodoDefault;
+    if (btnMemorial) btnMemorial.hidden = true;
+    sessionStorage.removeItem(MEMORIAL_KEY);
     clearError();
     resultContent.hidden = true;
     emptyState.hidden = false;

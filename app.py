@@ -14,10 +14,11 @@ from flask import Flask, jsonify, render_template, request, send_file
 from calcular_bitola_cabo_dc import (
     CFG,
     calcular_bitola_cb,
-    calcular_queda_para_bitola,
+    calcular_queda_comparativa,
     calcular_tempo_aquecimento,
     coef_conveccao_efetivo,
     config_para_dict,
+    gerar_memorial_calculo,
     gerar_nome_relatorio_por_inputs,
     metodos_instalacao,
     mm2_para_awg,
@@ -109,52 +110,91 @@ def _tabela_referencia():
 
 def _calcular(entradas):
     """Executa o dimensionamento e a analise termica, retornando dados prontos p/ UI."""
+    h_efetivo = coef_conveccao_efetivo(entradas["metodo_instalacao"], entradas["n_condutores"])
+
     resultado = calcular_bitola_cb(
         entradas["distancia"],
         entradas["corrente"],
         entradas["tensao"],
         entradas["queda_percentual"],
+        temp_ambiente=entradas["temp_amb"],
+        coef_conveccao=h_efetivo,
+        diametro_externo=entradas["diametro"],
+        temp_maxima=entradas["temp_max"],
     )
 
-    adequada = resultado["queda_tensao_percentual"] <= resultado["queda_maxima_percentual"]
+    adequada = resultado["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
     status_queda = "ADEQUADA" if adequada else "ACIMA DO LIMITE"
 
     principal = {
         "secao_calculada": f"{resultado['secao_calculada']:.2f}",
         "bitola_recomendada": f"{resultado['bitola_recomendada']:.2f}",
         "bitola_awg": str(resultado["bitola_awg"]),
-        "queda_tensao_volts": f"{resultado['queda_tensao_volts']:.2f}",
-        "queda_tensao_percentual": f"{resultado['queda_tensao_percentual']:.2f}",
+        "queda_inicial_volts": f"{resultado['queda_inicial_volts']:.2f}",
+        "queda_inicial_percentual": f"{resultado['queda_inicial_percentual']:.2f}",
+        "queda_final_volts": f"{resultado['queda_final_volts']:.2f}",
+        "queda_final_percentual": f"{resultado['queda_final_percentual']:.2f}",
+        "queda_tensao_volts": f"{resultado['queda_final_volts']:.2f}",
+        "queda_tensao_percentual": f"{resultado['queda_final_percentual']:.2f}",
         "queda_maxima_percentual": f"{resultado['queda_maxima_percentual']:.2f}",
         "comprimento_total": f"{resultado['comprimento_total']:.2f}",
+        "temperatura_operacao": f"{resultado['temperatura_operacao']:.1f}",
         "status": status_queda,
         "adequada": adequada,
     }
 
-    h_efetivo = coef_conveccao_efetivo(entradas["metodo_instalacao"], entradas["n_condutores"])
-
     linhas_termicas = []
+    alerta_recomendada = None
     for bitola in obter_bitolas_analise_termica(resultado["bitola_recomendada"]):
         awg = mm2_para_awg(bitola)
-        queda = calcular_queda_para_bitola(
-            bitola, resultado["comprimento_total"], entradas["corrente"], entradas["tensao"]
+        queda = calcular_queda_comparativa(
+            bitola, resultado["comprimento_total"], entradas["corrente"], entradas["tensao"],
+            temp_ambiente=entradas["temp_amb"],
+            h_conveccao=h_efetivo,
+            diametro_externo=entradas["diametro"],
+            temp_limite=entradas["temp_max"],
         )
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], entradas["diametro"], h_efetivo,
         )
-        ok = queda["queda_tensao_percentual"] <= resultado["queda_maxima_percentual"]
-        linhas_termicas.append({
+        ok = queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
+        alerta = termico["alerta_termico"]
+        margem = termico["margem_termica_celsius"]
+        if isinstance(margem, float) and margem == float("-inf"):
+            margem_str = "—"
+        else:
+            margem_str = f"{margem:.1f}"
+
+        linha = {
             "bitola": f"{bitola:.2f}",
             "awg": str(awg),
-            "queda_volts": f"{queda['queda_tensao_volts']:.2f}",
-            "queda_percentual": f"{queda['queda_tensao_percentual']:.2f}",
+            "queda_inicial_volts": f"{queda['queda_inicial_volts']:.2f}",
+            "queda_inicial_percentual": f"{queda['queda_inicial_percentual']:.2f}",
+            "queda_final_volts": f"{queda['queda_final_volts']:.2f}",
+            "queda_final_percentual": f"{queda['queda_final_percentual']:.2f}",
             "potencia": f"{termico['potencia_gerada_watts']:.2f}",
             "temp_regime": str(termico["temp_regimen_celsius"]),
+            "margem_termica": margem_str,
             "tempo_minutos": str(termico["tempo_minutos"]),
             "status": "OK" if ok else "QUEDA ALTA",
+            "alerta_termico": alerta,
             "recomendada": bitola == resultado["bitola_recomendada"],
-        })
+        }
+        linhas_termicas.append(linha)
+
+        if bitola == resultado["bitola_recomendada"]:
+            alerta_recomendada = alerta
+
+    if adequada and alerta_recomendada in ("atencao", "critico"):
+        principal["alerta_termico"] = alerta_recomendada
+        principal["alerta_termico_msg"] = (
+            "Queda de tensão adequada, mas a temperatura de regime está elevada. "
+            "Considere aumentar a bitola ou melhorar a instalação."
+        )
+    else:
+        principal["alerta_termico"] = alerta_recomendada or "ok"
+        principal["alerta_termico_msg"] = None
 
     instalacao = {
         "metodo": entradas["metodo_instalacao"],
@@ -165,12 +205,15 @@ def _calcular(entradas):
         "h_efetivo": f"{h_efetivo:.2f}",
     }
 
+    memorial = gerar_memorial_calculo(entradas, resultado, h_efetivo)
+
     return {
         "entradas": entradas,
         "principal": principal,
         "termicas": linhas_termicas,
         "referencia": _tabela_referencia(),
         "instalacao": instalacao,
+        "memorial": memorial,
     }
 
 
@@ -182,6 +225,26 @@ def index():
         metodos=metodos_instalacao(),
         metodo_padrao=CFG.instalacao_padrao,
     )
+
+
+@app.route("/memorial")
+def memorial_page():
+    return render_template("memorial.html")
+
+
+@app.route("/api/memorial", methods=["POST"])
+def api_memorial():
+    """Recalcula e devolve o memorial de cálculo para validação."""
+    dados = request.get_json(silent=True) or request.form
+    try:
+        entradas = _parse_entradas(dados)
+    except ValueError as exc:
+        return jsonify({"erro": str(exc)}), 400
+    except Exception:  # noqa: BLE001
+        return jsonify({"erro": "Entrada invalida. Use valores numericos."}), 400
+
+    payload = _calcular(entradas)
+    return jsonify(payload["memorial"])
 
 
 @app.route("/health")
@@ -224,38 +287,55 @@ def api_relatorio():
 
     incluir_ref = str(dados.get("incluir_referencia", "")).lower() in ("1", "true", "s", "on", "sim")
 
+    h_efetivo = coef_conveccao_efetivo(entradas["metodo_instalacao"], entradas["n_condutores"])
     resultado = calcular_bitola_cb(
         entradas["distancia"], entradas["corrente"],
         entradas["tensao"], entradas["queda_percentual"],
+        temp_ambiente=entradas["temp_amb"],
+        coef_conveccao=h_efetivo,
+        diametro_externo=entradas["diametro"],
+        temp_maxima=entradas["temp_max"],
     )
-    adequada = resultado["queda_tensao_percentual"] <= resultado["queda_maxima_percentual"]
+    adequada = resultado["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
     status_queda = "ADEQUADA" if adequada else "ACIMA DO LIMITE"
     linhas_principal = [[
         f"{resultado['secao_calculada']:.2f}",
         f"{resultado['bitola_recomendada']:.2f}",
         f"{resultado['bitola_awg']}",
-        f"{resultado['queda_tensao_volts']:.2f}",
-        f"{resultado['queda_tensao_percentual']:.2f}",
+        f"{resultado['queda_inicial_volts']:.2f}",
+        f"{resultado['queda_inicial_percentual']:.2f}",
+        f"{resultado['queda_final_volts']:.2f}",
+        f"{resultado['queda_final_percentual']:.2f}",
         f"{resultado['queda_maxima_percentual']:.2f}",
         status_queda,
     ]]
 
-    h_efetivo = coef_conveccao_efetivo(entradas["metodo_instalacao"], entradas["n_condutores"])
     linhas_termicas = []
     for bitola in obter_bitolas_analise_termica(resultado["bitola_recomendada"]):
         awg = mm2_para_awg(bitola)
-        queda = calcular_queda_para_bitola(
-            bitola, resultado["comprimento_total"], entradas["corrente"], entradas["tensao"]
+        queda = calcular_queda_comparativa(
+            bitola, resultado["comprimento_total"], entradas["corrente"], entradas["tensao"],
+            temp_ambiente=entradas["temp_amb"],
+            h_conveccao=h_efetivo,
+            diametro_externo=entradas["diametro"],
+            temp_limite=entradas["temp_max"],
         )
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], entradas["diametro"], h_efetivo,
         )
-        status_termico = "OK" if queda["queda_tensao_percentual"] <= resultado["queda_maxima_percentual"] else "QUEDA ALTA"
+        status_termico = "OK" if queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"] else "QUEDA ALTA"
+        margem = termico["margem_termica_celsius"]
+        if isinstance(margem, float) and margem == float("-inf"):
+            margem_txt = "—"
+        else:
+            margem_txt = f"{margem:.1f}"
         linhas_termicas.append([
             f"{bitola:.2f}", f"{awg}",
-            f"{queda['queda_tensao_volts']:.2f}", f"{queda['queda_tensao_percentual']:.2f}",
+            f"{queda['queda_inicial_volts']:.2f}", f"{queda['queda_inicial_percentual']:.2f}",
+            f"{queda['queda_final_volts']:.2f}", f"{queda['queda_final_percentual']:.2f}",
             f"{termico['potencia_gerada_watts']:.2f}", f"{termico['temp_regimen_celsius']}",
+            margem_txt,
             f"{termico['tempo_minutos']}", status_termico,
         ])
 

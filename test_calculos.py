@@ -29,9 +29,30 @@ def test_queda_para_bitola_bate_com_formula():
     assert q["queda_tensao_percentual"] == pytest.approx(3.5729, abs=1e-3)
 
 
+def test_queda_comparativa_final_maior_que_inicial():
+    """Com aquecimento, Vdrop em regime deve ser maior que na largada."""
+    q = m.calcular_queda_comparativa(
+        bitola=4.0, comprimento_total=2.0, corrente=49, tensao=12,
+        temp_ambiente=25, h_conveccao=m.CFG.coef_conveccao,
+    )
+    assert q["queda_final_volts"] > q["queda_inicial_volts"]
+    assert q["queda_final_percentual"] > q["queda_inicial_percentual"]
+
+
 def test_bitola_selecionada_e_sempre_para_cima():
     r = m.calcular_bitola_cb(distancia=1, corrente=1, tensao=12, queda_percentual=3)
     assert r["bitola_recomendada"] >= r["secao_calculada"]
+
+
+def test_dimensionamento_com_rho_t_pode_aumentar_bitola():
+    """Com ρ(T), a bitola pode subir em relação ao cálculo só a 20 °C."""
+    r20 = m.calcular_bitola_cb(distancia=1, corrente=49, tensao=12, queda_percentual=5)
+    r_t = m.calcular_bitola_cb(
+        distancia=1, corrente=49, tensao=12, queda_percentual=5,
+        temp_ambiente=25, coef_conveccao=m.CFG.coef_conveccao, temp_maxima=200,
+    )
+    assert r_t["bitola_recomendada"] >= r20["bitola_recomendada"]
+    assert r_t["queda_final_volts"] >= r_t["queda_inicial_volts"]
 
 
 # --------------------------------------------------------------------------
@@ -49,12 +70,50 @@ def test_conversao_awg_sem_equivalente():
 
 
 # --------------------------------------------------------------------------
-# Análise térmica — a potência Joule deve ser fisicamente correta (W/m)
+# Análise térmica — potência Joule e ρ(T)
 # --------------------------------------------------------------------------
+# --------------------------------------------------------------------------
+# Resistividade dependente da temperatura
+# --------------------------------------------------------------------------
+def test_resistividade_em_temperatura_t0():
+    """ρ(T₀) deve ser igual a ρ₀."""
+    assert m.resistividade_em_temperatura(m.CFG.temperatura_referencia) == pytest.approx(
+        m.CFG.resistividade_cobre
+    )
+
+
+def test_resistividade_aumenta_com_temperatura():
+    assert m.resistividade_em_temperatura(140) > m.resistividade_em_temperatura(25)
+
+
+def test_equilibrio_termico_maior_que_modelo_fixo():
+    """Com ρ(T), T de regime deve ser maior que com ρ₀ fixo (corrente moderada)."""
+    bitola, corrente, temp_amb = 6.0, 20.0, 25.0
+    h = m.CFG.coef_conveccao
+    diam = (4 * bitola / 3.14159) ** 0.5 + m.CFG.espessura_isolacao
+    area = 2 * 3.14159 * (diam / 2 / 1000) * 1.0
+
+    conv = m.calcular_equilibrio_termico(bitola, corrente, temp_amb, h, area)
+    rho_fixo = m.CFG.resistividade_cobre
+    p_fixo = corrente ** 2 * (rho_fixo / bitola)
+    t_fixo = temp_amb + p_fixo / (h * area)
+
+    assert conv["temp_regimen"] > t_fixo
+
+
 def test_potencia_joule_correta():
-    """P = I^2 * (rho*L/S). Para 2.5 mm² e 100 A: R=0.007 Ω/m, P=70 W/m."""
+    """Runaway térmico: P usa ρ(T_max), maior que o valor a 20 °C (70 W/m)."""
     t = m.calcular_tempo_aquecimento(bitola=2.5, corrente=100, temp_maxima=200, temp_ambiente=25)
-    assert t["potencia_gerada_watts"] == pytest.approx(70.0, abs=0.5)
+    assert t["potencia_gerada_watts"] > 70.0
+    assert t["potencia_gerada_watts"] == pytest.approx(119.52, abs=0.5)
+
+
+def test_margem_termica_exemplo_usuario():
+    """Cenário com T_regime ~140 °C e T_max 200 → margem ~60 °C."""
+    t = m.calcular_tempo_aquecimento(bitola=4.0, corrente=49, temp_maxima=200, temp_ambiente=25)
+    assert 135 <= t["temp_regimen_value"] <= 145
+    assert t["margem_termica_celsius"] == pytest.approx(200 - t["temp_regimen_value"], abs=0.1)
+    assert t["alerta_termico"] == "atencao"
 
 
 def test_corrente_alta_atinge_tmax():
@@ -76,6 +135,8 @@ def test_corrente_baixa_nao_atinge_tmax():
 def test_carregar_config_padrao_bate_com_embutido():
     cfg = m.carregar_config()
     assert cfg.resistividade_cobre == 0.0175
+    assert cfg.temperatura_referencia == 20.0
+    assert cfg.coef_temp_cobre == 0.00393
     assert cfg.coef_conveccao == 10.0
     assert len(cfg.bitolas_comerciais) == 22
 
@@ -157,6 +218,23 @@ def test_agrupamento_aquece_mais():
     t1 = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h1)
     t6 = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h6)
     assert t6["temp_regimen_value"] > t1["temp_regimen_value"]
+
+
+def test_memorial_contem_secoes_principais():
+    entradas = {
+        "distancia": 1.0, "corrente": 49.0, "tensao": 12.0, "queda_percentual": 5.0,
+        "temp_amb": 25.0, "temp_max": 200.0, "diametro": None,
+        "metodo_instalacao": "ar_livre", "n_condutores": 1,
+    }
+    h = m.coef_conveccao_efetivo("ar_livre", 1)
+    resultado = m.calcular_bitola_cb(
+        entradas["distancia"], entradas["corrente"], entradas["tensao"],
+        entradas["queda_percentual"], temp_ambiente=25, coef_conveccao=h, temp_maxima=200,
+    )
+    memorial = m.gerar_memorial_calculo(entradas, resultado, h)
+    ids = {s["id"] for s in memorial["secoes"]}
+    assert ids == {"entradas", "constantes", "dimensionamento", "queda", "termico", "comparativo"}
+    assert memorial["titulo"]
 
 
 def test_coef_conveccao_default_sem_argumento():

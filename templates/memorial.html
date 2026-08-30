@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Memorial de Cálculo — Bitola DC</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  <header class="app-header border-bottom border-secondary-subtle">
+    <div class="container py-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+          <h1 class="h4 mb-0 fw-bold">Memorial de Cálculo</h1>
+          <p class="mb-0 text-body-secondary small">Detalhamento passo a passo para validação</p>
+        </div>
+        <a href="/" class="btn btn-outline-secondary btn-sm">← Voltar à calculadora</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container py-4 pb-5">
+    <div id="memorial-empty" class="card shadow-sm text-center" hidden>
+      <div class="card-body py-5">
+        <h2 class="h5">Nenhum cálculo disponível</h2>
+        <p class="text-body-secondary mb-4">Execute um dimensionamento na calculadora para gerar o memorial.</p>
+        <a href="/" class="btn btn-primary">Ir para a calculadora</a>
+      </div>
+    </div>
+
+    <div id="memorial-content" hidden>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <p class="text-body-secondary small mb-0" id="memorial-subtitulo"></p>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-print">Imprimir</button>
+      </div>
+      <div id="memorial-secoes" class="d-flex flex-column gap-4"></div>
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/memorial.js') }}"></script>
+</body>
+</html>

@@ -128,8 +128,12 @@
                   <div class="fw-semibold"><span id="hl-secao">—</span> mm²</div>
                 </div>
                 <div class="col-6 col-md-3">
-                  <div class="text-body-secondary small">Queda real</div>
-                  <div class="fw-semibold"><span id="hl-queda-v">—</span> V (<span id="hl-queda-p">—</span>%)</div>
+                  <div class="text-body-secondary small">Vdrop inicial</div>
+                  <div class="fw-semibold"><span id="hl-queda-ini-v">—</span> V (<span id="hl-queda-ini-p">—</span>%)</div>
+                </div>
+                <div class="col-6 col-md-3">
+                  <div class="text-body-secondary small">Vdrop T. final</div>
+                  <div class="fw-semibold"><span id="hl-queda-fin-v">—</span> V (<span id="hl-queda-fin-p">—</span>%)</div>
                 </div>
                 <div class="col-6 col-md-3">
                   <div class="text-body-secondary small">Limite</div>
@@ -140,6 +144,7 @@
                   <div class="fw-semibold"><span id="hl-comp">—</span> m</div>
                 </div>
               </div>
+              <div id="alerta-termico-box" class="alert alert-warning py-2 px-3 mt-3 mb-0 small" role="alert" hidden></div>
             </div>
           </div>
 
@@ -153,13 +158,17 @@
                 <table class="table table-dark table-hover align-middle mb-0">
                   <thead>
                     <tr class="text-body-secondary">
-                      <th>Bitola (mm²)</th><th>AWG</th><th>Queda (V)</th><th>Queda (%)</th>
-                      <th>P. Joule (W/m)</th><th>Temp. regime (°C)</th><th>Tempo até Tmáx (min)</th><th>Status</th>
+                      <th>Bitola (mm²)</th><th>AWG</th>
+                      <th>Vdrop inicial</th><th>Vdrop T. final</th>
+                      <th>P. Joule (W/m)</th><th>Temp. regime (°C)</th><th>Margem térmica (°C)</th><th>Tempo até Tmáx (min)</th><th>Status</th>
                     </tr>
                   </thead>
                   <tbody id="termica-body"></tbody>
                 </table>
               </div>
+              <p class="text-body-secondary small mb-0 mt-2">
+                Vdrop inicial: cabo frio (T ambiente). Vdrop T. final: regime com ρ(T) e realimentação térmica.
+              </p>
             </div>
           </div>
 
@@ -187,18 +196,21 @@
             </div>
           </div>
 
-          <!-- Download -->
+          <!-- Documentação -->
           <div class="card shadow-sm">
             <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
               <div>
-                <h3 class="h6 mb-1">Relatório completo</h3>
-                <p class="text-body-secondary small mb-0">Baixe um arquivo <code>.txt</code> com dados de entrada, dimensionamento e análise térmica.</p>
+                <h3 class="h6 mb-1">Documentação do cálculo</h3>
+                <p class="text-body-secondary small mb-0">
+                  Memorial passo a passo para validação ou relatório <code>.txt</code> completo.
+                </p>
               </div>
               <div class="d-flex align-items-center gap-3 flex-wrap">
                 <div class="form-check mb-0">
                   <input class="form-check-input" type="checkbox" id="incluir-ref" />
-                  <label class="form-check-label small" for="incluir-ref">Incluir tabela de referência</label>
+                  <label class="form-check-label small" for="incluir-ref">Incluir tabela de referência no TXT</label>
                 </div>
+                <a href="/memorial" class="btn btn-outline-info" id="btn-memorial" hidden>Memorial</a>
                 <button type="button" class="btn btn-primary" id="btn-download">Baixar relatório TXT</button>
               </div>
             </div>
