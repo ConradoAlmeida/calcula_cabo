@@ -321,12 +321,28 @@ CFG = carregar_config()
 BITOLAS_COMERCIAIS = CFG.bitolas_comerciais
 
 
-def imprimir_tabela(titulo, cabecalhos, linhas):
+def imprimir_tabela(titulo, cabecalhos, linhas, nota=None):
     """Imprime tabela ASCII com largura automática por coluna."""
-    print(formatar_tabela(titulo, cabecalhos, linhas))
+    print(formatar_tabela(titulo, cabecalhos, linhas, nota=nota))
 
 
-def formatar_tabela(titulo, cabecalhos, linhas):
+def texto_criterio_selecao_bitola():
+    """Critério resumido de escolha da bitola comercial (relatório e UI)."""
+    return (
+        "Criterio de selecao: menor bitola comercial com Vdrop T.final <= limite (%) "
+        "e alerta termico OK (T_regime < 70% de T_max; atencao se >= 70%; "
+        "critico se >= 90% ou runaway)."
+    )
+
+
+def texto_nota_status_comparativo():
+    """Esclarece a coluna de status na tabela comparativa do relatório TXT."""
+    return (
+        "Nota: 'Status queda' avalia apenas a queda; a selecao exige tambem alerta termico OK."
+    )
+
+
+def formatar_tabela(titulo, cabecalhos, linhas, nota=None):
     """Retorna uma tabela ASCII formatada como texto."""
     larguras = [len(str(coluna)) for coluna in cabecalhos]
 
@@ -339,7 +355,10 @@ def formatar_tabela(titulo, cabecalhos, linhas):
         str(coluna).ljust(larguras[i]) for i, coluna in enumerate(cabecalhos)
     ) + " |"
 
-    linhas_saida = [f"\n{titulo}", separador, cabecalho_formatado, separador]
+    linhas_saida = [f"\n{titulo}"]
+    if nota:
+        linhas_saida.append(nota)
+    linhas_saida.extend([separador, cabecalho_formatado, separador])
 
     for linha in linhas:
         linha_formatada = "| " + " | ".join(
@@ -1306,6 +1325,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     secoes.append({
         "id": "comparativo",
         "titulo": "6. Comparativo — bitolas vizinhas",
+        "descricao": texto_criterio_selecao_bitola(),
         "tabela": comparativo,
     })
 
@@ -1416,7 +1436,8 @@ def salvar_relatorio_txt(
             "Vdrop T.final (V)", "Vdrop T.final (%)",
             "Limite (%)", "Status",
         ],
-        linhas_principal
+        linhas_principal,
+        nota=texto_criterio_selecao_bitola(),
     )
 
     tabela_termica = formatar_tabela(
@@ -1428,7 +1449,8 @@ def salvar_relatorio_txt(
             "P. Joule (W/m)", "Temp. regime (C)", "Margem termica (C)",
             "Tempo ate Tmax (min)", "Status queda",
         ],
-        linhas_termicas
+        linhas_termicas,
+        nota=texto_nota_status_comparativo(),
     )
 
     secao_resumo = [
@@ -1601,7 +1623,8 @@ def main():
                 "Vdrop T.final (V)", "Vdrop T.final (%)",
                 "Limite (%)", "Status",
             ],
-            linhas_principal
+            linhas_principal,
+            nota=texto_criterio_selecao_bitola(),
         )
 
         # Análise térmica comparativa: AWG anterior, recomendado e próximo
@@ -1651,7 +1674,8 @@ def main():
                 "P. Joule (W/m)", "Temp. regime (C)", "Margem termica (C)",
                 "Tempo ate Tmax (min)", "Status queda",
             ],
-            linhas_termicas
+            linhas_termicas,
+            nota=texto_nota_status_comparativo(),
         )
 
         print(f"\nParametros termicos: Tamb={temp_amb}C | Tmax={temp_max}C | Diametro externo={diametro if diametro else 'estimado'}")

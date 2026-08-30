@@ -123,7 +123,10 @@
     } else if (secao.passos) {
       body = '<div class="memorial-passos">' + renderPassos(secao.passos) + "</div>";
     } else if (secao.tabela) {
-      body = renderTabelaComparativo(secao.tabela);
+      const intro = secao.descricao
+        ? '<p class="text-body-secondary small mb-3">' + escapeHtml(secao.descricao) + "</p>"
+        : "";
+      body = intro + renderTabelaComparativo(secao.tabela);
     }
 
     return `
