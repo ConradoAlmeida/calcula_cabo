@@ -10,249 +10,282 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
-<body>
+<body class="app-shell">
   <header class="app-header top-bar">
-    <div class="container py-3">
-      <div class="d-flex align-items-center gap-3">
+    <div class="container-fluid app-header-inner">
+      <div class="d-flex align-items-center gap-2 gap-md-3">
         <img src="{{ url_for('static', filename='images/logo_dashboard.png') }}" alt="Logo" class="logo-img" />
-        <div>
-          <h1 class="h4 mb-0">Calculadora de Bitola <span class="app-accent">DC</span></h1>
-          <p class="mb-0 subtitle">Dimensionamento de cabos de cobre por queda de tensão e análise térmica</p>
+        <div class="min-w-0">
+          <h1 class="h5 mb-0 text-truncate">Calculadora de Bitola <span class="app-accent">DC</span></h1>
+          <p class="mb-0 subtitle d-none d-md-block">Queda de tensão e análise térmica — cabos de cobre UAS</p>
         </div>
       </div>
     </div>
   </header>
 
-  <main class="container pb-5 main-container">
-    <div class="row g-4">
+  <main class="app-workspace container-fluid">
+    <div class="workspace-grid">
       <!-- Formulário -->
-      <div class="col-lg-4">
-        <div class="card shadow-sm form-card">
-          <div class="card-body">
-            <h2 class="h6 text-uppercase text-body-secondary fw-semibold mb-3">Parâmetros de entrada</h2>
-            <form id="form-bitola" autocomplete="off">
-              <div class="mb-3">
-                <label for="distancia" class="form-label">Distância fonte → equipamento <span class="text-body-secondary">(m)</span></label>
-                <input type="number" class="form-control" id="distancia" name="distancia" step="any" min="0" value="{{ padroes.distancia }}" />
-                <div class="form-text">O cálculo considera ida + volta (2 × distância).</div>
-              </div>
-
-              <div class="row g-2 mb-3">
-                <div class="col-6">
-                  <label for="corrente" class="form-label">Corrente <span class="text-body-secondary">(A)</span></label>
-                  <input type="number" class="form-control" id="corrente" name="corrente" step="any" min="0" value="{{ padroes.corrente }}" />
+      <aside class="form-panel">
+        <div class="card shadow-sm form-card h-100">
+          <div class="card-body d-flex flex-column p-3 p-lg-3">
+            <h2 class="form-panel-title">Entrada</h2>
+            <form id="form-bitola" class="d-flex flex-column flex-grow-1 min-h-0" autocomplete="off">
+              <div class="form-scroll">
+                <div class="mb-2">
+                  <label for="distancia" class="form-label">Distância <span class="label-hint">(m, ida)</span></label>
+                  <input type="number" class="form-control form-control-sm" id="distancia" name="distancia" step="any" min="0" value="{{ padroes.distancia }}" title="Circuito elétrico usa ida + volta (2 × distância)" />
                 </div>
-                <div class="col-6">
-                  <label for="tensao" class="form-label">Tensão <span class="text-body-secondary">(V DC)</span></label>
-                  <input type="number" class="form-control" id="tensao" name="tensao" step="any" min="0" value="{{ padroes.tensao }}" />
+
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <label for="corrente" class="form-label">Corrente <span class="label-hint">(A)</span></label>
+                    <input type="number" class="form-control form-control-sm" id="corrente" name="corrente" step="any" min="0" value="{{ padroes.corrente }}" />
+                  </div>
+                  <div class="col-6">
+                    <label for="tensao" class="form-label">Tensão <span class="label-hint">(V DC)</span></label>
+                    <input type="number" class="form-control form-control-sm" id="tensao" name="tensao" step="any" min="0" value="{{ padroes.tensao }}" />
+                  </div>
+                </div>
+
+                <div class="mb-2">
+                  <label for="queda_percentual" class="form-label">Queda máx. <span class="label-hint">(%)</span></label>
+                  <div class="d-flex gap-2 mb-1">
+                    <button type="button" class="btn btn-sm vdrop-preset active flex-fill" data-queda-preset="{{ queda_circuito.critico }}" title="{{ queda_circuito.rotulo_critico }}">
+                      {{ queda_circuito.critico }}%
+                    </button>
+                    <button type="button" class="btn btn-sm vdrop-preset flex-fill" data-queda-preset="{{ queda_circuito.comum }}" title="{{ queda_circuito.rotulo_comum }}">
+                      {{ queda_circuito.comum }}%
+                    </button>
+                    <input type="number" class="form-control form-control-sm queda-input" id="queda_percentual" name="queda_percentual" step="any" min="0" value="{{ padroes.queda_percentual }}" title="Limite de queda de tensão em regime" />
+                  </div>
+                </div>
+
+                <div class="section-divider section-divider-compact"><span>Térmica</span></div>
+
+                <div class="row g-2 mb-2">
+                  <div class="col-4">
+                    <label for="temp_max" class="form-label">T<sub>max</sub> <span class="label-hint">(°C)</span></label>
+                    <input type="number" class="form-control form-control-sm" id="temp_max" name="temp_max" step="any" value="{{ padroes.temp_max }}" />
+                  </div>
+                  <div class="col-4">
+                    <label for="temp_amb" class="form-label">T<sub>amb</sub> <span class="label-hint">(°C)</span></label>
+                    <input type="number" class="form-control form-control-sm" id="temp_amb" name="temp_amb" step="any" value="{{ padroes.temp_amb }}" />
+                  </div>
+                  <div class="col-4">
+                    <label for="pct_limite_termico" class="form-label">Limite <span class="label-hint">(% T<sub>max</sub>)</span></label>
+                    <input type="number" class="form-control form-control-sm" id="pct_limite_termico" name="pct_limite_termico" step="any" min="1" max="100" value="{{ padroes.pct_limite_termico }}" title="T_regime deve ficar ≤ este percentual de T_max" />
+                  </div>
+                </div>
+
+                <div class="row g-2 mb-0">
+                  <div class="col-8">
+                    <label for="metodo_instalacao" class="form-label">Instalação</label>
+                    <select class="form-select form-select-sm" id="metodo_instalacao" name="metodo_instalacao" title="Dissipação de calor conforme instalação na aeronave">
+                      {% for met in metodos %}
+                      <option value="{{ met.id }}"{% if met.id == metodo_padrao %} selected{% endif %}>{{ met.rotulo }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-4">
+                    <label for="n_condutores" class="form-label">No feixe</label>
+                    <input type="number" class="form-control form-control-sm" id="n_condutores" name="n_condutores" min="1" step="1" value="1" title="Condutores agrupados no mesmo chicote" />
+                  </div>
                 </div>
               </div>
 
-              <div class="mb-3">
-                <label for="queda_percentual" class="form-label">Queda de tensão máxima <span class="text-body-secondary">(%)</span></label>
-                <div class="d-flex flex-wrap gap-2 mb-2">
-                  <button type="button" class="btn btn-sm vdrop-preset active" data-queda-preset="{{ queda_circuito.critico }}" title="{{ queda_circuito.rotulo_critico }}">
-                    {{ queda_circuito.critico }}% — Crítico
-                  </button>
-                  <button type="button" class="btn btn-sm vdrop-preset" data-queda-preset="{{ queda_circuito.comum }}" title="{{ queda_circuito.rotulo_comum }}">
-                    {{ queda_circuito.comum }}% — Comum
-                  </button>
-                </div>
-                <input type="number" class="form-control" id="queda_percentual" name="queda_percentual" step="any" min="0" value="{{ padroes.queda_percentual }}" />
-                <div class="form-text">{{ queda_circuito.rotulo_critico }}: {{ queda_circuito.critico }}%. {{ queda_circuito.rotulo_comum }}: {{ queda_circuito.comum }}% (IEC 60364-5-52 / UAS).</div>
-              </div>
-
-              <div class="section-divider"><span>Análise térmica</span></div>
-
-              <div class="row g-2 mb-3">
-                <div class="col-6">
-                  <label for="temp_max" class="form-label">Temp. máx. cabo <span class="text-body-secondary">(°C)</span></label>
-                  <input type="number" class="form-control" id="temp_max" name="temp_max" step="any" value="{{ padroes.temp_max }}" />
-                </div>
-                <div class="col-6">
-                  <label for="temp_amb" class="form-label">Temp. ambiente <span class="text-body-secondary">(°C)</span></label>
-                  <input type="number" class="form-control" id="temp_amb" name="temp_amb" step="any" value="{{ padroes.temp_amb }}" />
-                </div>
-              </div>
-
-              <div class="mb-3">
-                <label for="pct_limite_termico" class="form-label">Limite térmico <span class="text-body-secondary">(% de T<sub>max</sub>)</span></label>
-                <input type="number" class="form-control" id="pct_limite_termico" name="pct_limite_termico" step="any" min="1" max="100" value="{{ padroes.pct_limite_termico }}" />
-                <div class="form-text">T<sub>regime</sub> deve ficar ≤ este percentual de T<sub>max</sub> na seleção da seção térmica (padrão 85%).</div>
-              </div>
-
-              <div class="mb-3">
-                <label for="metodo_instalacao" class="form-label">Método de instalação</label>
-                <select class="form-select" id="metodo_instalacao" name="metodo_instalacao">
-                  {% for met in metodos %}
-                  <option value="{{ met.id }}"{% if met.id == metodo_padrao %} selected{% endif %}>{{ met.rotulo }}</option>
-                  {% endfor %}
-                </select>
-                <div class="form-text">Como o cabo está instalado na aeronave — afeta a dissipação de calor (convecção).</div>
-              </div>
-
-              <div class="mb-4">
-                <label for="n_condutores" class="form-label">Condutores agrupados <span class="text-body-secondary">(lado a lado)</span></label>
-                <input type="number" class="form-control" id="n_condutores" name="n_condutores" min="1" step="1" value="1" />
-                <div class="form-text">Fios no mesmo chicote ou feixe — mais condutores juntos = pior dissipação.</div>
-              </div>
-
-              <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-primary" id="btn-calcular">
+              <div class="form-actions d-grid gap-2 mt-2">
+                <button type="submit" class="btn btn-primary btn-sm" id="btn-calcular">
                   <span class="spinner spinner-border spinner-border-sm me-1" hidden></span>
                   <span class="btn-label">Calcular bitola</span>
                 </button>
-                <button type="button" class="btn btn-outline-secondary" id="btn-reset">Restaurar padrões</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-reset">Restaurar padrões</button>
               </div>
             </form>
           </div>
         </div>
-      </div>
+      </aside>
 
       <!-- Resultados -->
-      <div class="col-lg-8">
-        <div id="error-box" class="alert alert-warning" role="alert" hidden></div>
+      <section class="results-panel">
+        <div id="error-box" class="alert alert-warning py-2 mb-2" role="alert" hidden></div>
 
-        <div id="empty-state" class="card shadow-sm text-center">
-          <div class="card-body py-5">
-            <div class="display-5 mb-2">📐</div>
-            <h3 class="h5">Pronto para dimensionar</h3>
-            <p class="text-body-secondary mb-0 mx-auto" style="max-width: 440px;">
-              Preencha os parâmetros e clique em <strong>Calcular bitola</strong> para ver a bitola recomendada,
-              a análise térmica comparativa e a tabela de referência.
+        <!-- Teste de Sanidade — colapsável em telas menores -->
+        <div class="sanidade-mobile d-xl-none mb-2">
+          <button
+            class="btn btn-sm btn-outline-secondary w-100 d-flex align-items-center justify-content-between sanidade-toggle"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#sanidade-mobile-body"
+            aria-expanded="false"
+            aria-controls="sanidade-mobile-body"
+          >
+            <span>Teste de Sanidade</span>
+            <span class="d-flex align-items-center gap-2">
+              <span id="sanidade-mobile-badge" class="badge rounded-pill text-bg-secondary">—</span>
+              <span class="sanidade-chevron" aria-hidden="true">▾</span>
+            </span>
+          </button>
+          <div id="sanidade-mobile-body" class="collapse">
+            <div class="card shadow-sm sanidade-card mt-2">
+              <div class="card-body p-3" id="sanidade-mobile-content">
+                <p class="text-body-secondary small mb-0">Calcule para ver os checks de validação.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="empty-state" class="card shadow-sm empty-state-card h-100">
+          <div class="card-body d-flex flex-column align-items-center justify-content-center text-center py-4">
+            <div class="empty-state-icon mb-2">📐</div>
+            <h3 class="h6 mb-1">Pronto para dimensionar</h3>
+            <p class="text-body-secondary small mb-0" style="max-width: 360px;">
+              Ajuste os parâmetros à esquerda e clique em <strong>Calcular bitola</strong>.
             </p>
           </div>
         </div>
 
-        <div id="result-content" class="d-flex flex-column gap-4" hidden>
+        <div id="result-content" class="d-flex flex-column gap-3" hidden>
           <!-- Destaque -->
           <div class="card shadow-sm highlight-card">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center">
-                <span class="text-uppercase text-body-secondary small fw-semibold">Bitola recomendada</span>
-                <span id="status-badge" class="badge rounded-pill fs-6"></span>
+            <div class="card-body p-3">
+              <div class="highlight-split">
+                <div class="highlight-hero">
+                  <span id="status-badge" class="badge rounded-pill highlight-status"></span>
+                  <span class="highlight-hero-label">Bitola recomendada</span>
+                  <div class="highlight-hero-core">
+                    <div class="highlight-value">
+                      <span id="hl-bitola">—</span><span class="hl-unit">mm²</span>
+                    </div>
+                    <div class="highlight-awg">AWG <span id="hl-awg">—</span></div>
+                  </div>
+                </div>
+
+                <div class="highlight-detail">
+                  <div class="highlight-detail-title">Seleção</div>
+                  <div class="highlight-theoretical">
+                    <div class="ht-row">
+                      <span class="ht-label">Cálculo p/ vdrop</span>
+                      <span class="ht-value"><span id="hl-secao-vdrop">—</span> mm²</span>
+                    </div>
+                    <div class="ht-row">
+                      <span class="ht-label">Cálculo p/ T<sub>limite</sub></span>
+                      <span class="ht-value"><span id="hl-secao-termica">—</span> mm²</span>
+                    </div>
+                  </div>
+                  <p class="highlight-governante mb-2">
+                    Governante: <strong id="hl-criterio">—</strong>
+                    <span class="text-body-secondary"> · menor comercial ≥ max(teóricas)</span>
+                  </p>
+                  <div class="highlight-bars">
+                    <div class="hbar">
+                      <div class="hbar-head">
+                        <span>Vdrop regime</span>
+                        <span><span id="hl-queda-fin-p">—</span>% / <span id="hl-limite">—</span>%</span>
+                      </div>
+                      <div class="hbar-track" role="presentation">
+                        <div class="hbar-fill" id="hl-bar-vdrop"></div>
+                      </div>
+                    </div>
+                    <div class="hbar">
+                      <div class="hbar-head">
+                        <span>T regime</span>
+                        <span><span id="hl-t-regime">—</span> °C · lim. <span id="hl-limite-termico">—</span>% T<sub>max</sub></span>
+                      </div>
+                      <div class="hbar-track" role="presentation">
+                        <div class="hbar-fill hbar-fill-thermal" id="hl-bar-thermal"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="highlight-footnote text-body-secondary small mb-0">
+                    L = <span id="hl-comp">—</span> m · Vdrop ini. <span id="hl-queda-ini-v">—</span> V (<span id="hl-queda-ini-p">—</span>%)
+                    · regime <span id="hl-queda-fin-v">—</span> V
+                  </p>
+                </div>
               </div>
-              <div class="highlight-value my-3">
-                <span id="hl-bitola">—</span><span class="hl-unit">mm²</span>
-                <span class="badge rounded-pill text-bg-info align-middle ms-2">AWG <span id="hl-awg">—</span></span>
-              </div>
-              <div class="row g-3 border-top pt-3">
-                <div class="col-6 col-md-6">
-                  <div class="text-body-secondary small">Cálculo p/ vdrop</div>
-                  <div class="fw-semibold"><span id="hl-secao-vdrop">—</span> mm²</div>
-                </div>
-                <div class="col-6 col-md-6">
-                  <div class="text-body-secondary small">Cálculo p/ T<sub>limite</sub></div>
-                  <div class="fw-semibold"><span id="hl-secao-termica">—</span> mm²</div>
-                </div>
-                <div class="col-6 col-md-3">
-                  <div class="text-body-secondary small">Vdrop inicial</div>
-                  <div class="fw-semibold"><span id="hl-queda-ini-v">—</span> V (<span id="hl-queda-ini-p">—</span>%)</div>
-                </div>
-                <div class="col-6 col-md-3">
-                  <div class="text-body-secondary small">Vdrop T. final</div>
-                  <div class="fw-semibold"><span id="hl-queda-fin-v">—</span> V (<span id="hl-queda-fin-p">—</span>%)</div>
-                </div>
-                <div class="col-6 col-md-3">
-                  <div class="text-body-secondary small">Limite vdrop</div>
-                  <div class="fw-semibold"><span id="hl-limite">—</span>%</div>
-                </div>
-                <div class="col-6 col-md-3">
-                  <div class="text-body-secondary small">Limite T (% T<sub>max</sub>)</div>
-                  <div class="fw-semibold"><span id="hl-limite-termico">—</span>%</div>
-                </div>
-                <div class="col-6 col-md-3">
-                  <div class="text-body-secondary small">Comprimento total</div>
-                  <div class="fw-semibold"><span id="hl-comp">—</span> m</div>
-                </div>
-              </div>
-              <div id="alerta-termico-box" class="alert alert-warning py-2 px-3 mt-3 mb-0 small" role="alert" hidden></div>
+              <div id="alerta-termico-box" class="alert alert-warning py-2 px-3 mt-2 mb-0 small" role="alert" hidden></div>
             </div>
           </div>
 
           <!-- Análise térmica -->
           <div class="card shadow-sm">
-            <div class="card-body">
-              <h2 class="h6 mb-1">Análise térmica comparativa</h2>
-              <p class="text-body-secondary small mb-2">Bitola anterior, recomendada e seguinte na tabela comercial.</p>
-              <p class="text-body-secondary small mb-2">
-                <strong>Critério de seleção:</strong> seção p/ vdrop = menor bitola com Vdrop T. final ≤ limite (%);
-                seção p/ T<sub>limite</sub> = menor bitola com T<sub>regime</sub> ≤ limite térmico (% de T<sub>max</sub>);
-                recomendada = maior entre as duas.
-              </p>
-              <p class="small mb-3" id="instalacao-info" hidden></p>
+            <div class="card-body p-3">
+              <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                <div>
+                  <h2 class="h6 mb-0">Análise térmica comparativa</h2>
+                  <p class="text-body-secondary small mb-0">Bitola anterior, recomendada e seguinte.</p>
+                </div>
+                <p class="small mb-0 results-hint" id="instalacao-info" hidden></p>
+              </div>
               <div class="table-responsive">
-                <table class="table table-dark table-hover align-middle mb-0">
+                <table class="table table-dark table-hover table-sm align-middle mb-0">
                   <thead>
                     <tr class="text-body-secondary">
-                      <th>Bitola (mm²)</th><th>AWG</th>
-                      <th>Vdrop inicial</th><th>Vdrop T. final</th>
-                      <th>P. Joule (W/m)</th><th>Temp. regime (°C)</th><th>ρ inicial</th><th>ρ T. final</th><th>Tempo até Tmáx (min)</th><th>Status</th>
+                      <th>Bitola</th><th>AWG</th>
+                      <th>Vdrop ini.</th><th>Vdrop fin.</th>
+                      <th>P (W/m)</th><th>T regime</th><th>ρ ini.</th><th>ρ fin.</th><th>Tempo</th><th>Status</th>
                     </tr>
                   </thead>
                   <tbody id="termica-body"></tbody>
                 </table>
               </div>
-              <p class="text-body-secondary small mb-0 mt-2">
-                Vdrop inicial: cabo frio (T ambiente). Vdrop T. final: regime com ρ(T) e realimentação térmica.
-                ρ inicial / ρ T. final: resistividade em Ω·mm²/m na largada e em regime.
-                Análise térmica: trecho de um condutor (distância fonte→equipamento); P. Joule em W/m.
-              </p>
             </div>
           </div>
 
-          <!-- Tabela de referência -->
+          <!-- Tabela de referência + documentação -->
           <div class="card shadow-sm">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-1">
-                <h2 class="h6 mb-0">Tabela de referência</h2>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-toggle-ref">Mostrar</button>
+            <div class="card-body p-3">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <div>
+                  <h2 class="h6 mb-0">Referência e relatório</h2>
+                  <p class="text-body-secondary small mb-0">Tabela comercial e exportação TXT.</p>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-toggle-ref">Tabela</button>
               </div>
-              <p class="text-body-secondary small mb-3">Bitolas comerciais e capacidade de corrente aproximada (~30 °C).</p>
               <div id="ref-wrap" hidden>
-                <div class="table-responsive">
+                <div class="table-responsive mb-2">
                   <table class="table table-dark table-striped table-sm align-middle mb-0">
                     <thead>
                       <tr class="text-body-secondary">
-                        <th>Bitola (mm²)</th><th>AWG</th><th>Corrente máx. (A)*</th><th>Resistência/km (Ω)</th>
+                        <th>Bitola (mm²)</th><th>AWG</th><th>I máx. (A)*</th><th>Ω/km</th>
                       </tr>
                     </thead>
                     <tbody id="referencia-body"></tbody>
                   </table>
                 </div>
-                <p class="text-body-secondary small mb-0">* Valores aproximados para temperatura de 30 °C.</p>
+                <p class="text-body-secondary small mb-0">* Aproximado a ~30 °C.</p>
               </div>
-            </div>
-          </div>
-
-          <!-- Documentação -->
-          <div class="card shadow-sm">
-            <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
-              <div>
-                <h3 class="h6 mb-1">Documentação do cálculo</h3>
-                <p class="text-body-secondary small mb-0">
-                  Memorial passo a passo para validação ou relatório <code>.txt</code> completo.
-                </p>
-              </div>
-              <div class="d-flex align-items-center gap-3 flex-wrap">
+              <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3 mt-3 pt-3 border-top border-secondary-subtle">
                 <div class="form-check mb-0">
                   <input class="form-check-input" type="checkbox" id="incluir-ref" />
-                  <label class="form-check-label small" for="incluir-ref">Incluir tabela de referência no TXT</label>
+                  <label class="form-check-label small" for="incluir-ref">Incluir referência no TXT</label>
                 </div>
-                <button type="button" class="btn btn-outline-info" id="btn-memorial" hidden>Memorial</button>
-                <button type="button" class="btn btn-primary" id="btn-download">Baixar relatório TXT</button>
+                <button type="button" class="btn btn-sm btn-outline-info" id="btn-memorial" hidden>Memorial</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-download">Baixar TXT</button>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
+
+      <!-- Teste de Sanidade — coluna fixa em telas largas -->
+      <aside class="sanidade-panel d-none d-xl-flex">
+        <div class="card shadow-sm sanidade-card h-100 w-100">
+          <div class="card-body p-3 d-flex flex-column min-h-0">
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+              <h2 class="sanidade-title mb-0">Teste de Sanidade</h2>
+              <span id="sanidade-badge" class="badge rounded-pill text-bg-secondary">—</span>
+            </div>
+            <div id="sanidade-content" class="sanidade-scroll flex-grow-1 min-h-0">
+              <p class="text-body-secondary small mb-0">Calcule para ver os checks de validação.</p>
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
   </main>
 
-  <footer class="container pb-4 app-footer">
-    <p class="text-body-secondary small text-center mb-2">
-      Dimensionamento por queda de tensão em condutor de cobre DC (sistemas embarcados / UAS). A análise térmica é uma aproximação de projeto.
-    </p>
+  <footer class="app-footer">
     <p class="text-body-secondary small text-center mb-0 app-footer-cert">
       {{ rodape_certificacao }}
     </p>

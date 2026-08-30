@@ -101,12 +101,92 @@
       .join("");
   }
 
+  function sanidadeBadgeClass(aprovado) {
+    return aprovado ? "text-bg-success" : "text-bg-danger";
+  }
+
+  function sanidadeBadgeLabel(aprovado) {
+    return aprovado ? "OK" : "Falha";
+  }
+
+  function buildSanidadeHtml(s) {
+    if (!s) {
+      return '<p class="text-body-secondary small mb-0">Calcule para ver os checks de validação.</p>';
+    }
+    const checks = s.checks
+      .map(
+        (c) => `
+      <div class="sanidade-check ${c.ok ? "ok" : "fail"}">
+        <span class="sanidade-check-icon" aria-hidden="true">${c.ok ? "✓" : "✗"}</span>
+        <div class="sanidade-check-body">
+          <div class="sanidade-check-label">${c.rotulo}</div>
+          <div class="sanidade-check-detail">${c.detalhe}</div>
+        </div>
+      </div>`
+      )
+      .join("");
+
+    const resumo = s.resumo
+      .map(
+        (r) => `
+      <dt>${r.rotulo}</dt>
+      <dd>${r.valor}</dd>`
+      )
+      .join("");
+
+    return `
+      <div class="sanidade-checks">${checks}</div>
+      <div class="sanidade-resumo">
+        <div class="sanidade-resumo-title">Resumo</div>
+        <dl>${resumo}</dl>
+      </div>`;
+  }
+
+  function renderSanidade(s) {
+    const html = buildSanidadeHtml(s);
+    const desktop = document.getElementById("sanidade-content");
+    const mobile = document.getElementById("sanidade-mobile-content");
+    if (desktop) desktop.innerHTML = html;
+    if (mobile) mobile.innerHTML = html;
+
+    const badgeClass = s ? sanidadeBadgeClass(s.aprovado) : "text-bg-secondary";
+    const badgeLabel = s ? sanidadeBadgeLabel(s.aprovado) : "—";
+
+    const badgeDesktop = document.getElementById("sanidade-badge");
+    if (badgeDesktop) {
+      badgeDesktop.textContent = badgeLabel;
+      badgeDesktop.className = "badge rounded-pill " + badgeClass;
+    }
+
+    const badgeMobile = document.getElementById("sanidade-mobile-badge");
+    if (badgeMobile) {
+      badgeMobile.textContent = badgeLabel;
+      badgeMobile.className = "badge rounded-pill " + badgeClass;
+    }
+  }
+
+  function criterioRotulo(id) {
+    return (
+      { vdrop: "Queda de tensão", termico: "Limite térmico", igual: "Empate" }[id] || id || "—"
+    );
+  }
+
+  function setBarFill(el, pct, overClass) {
+    if (!el) return;
+    const width = Math.min(Math.max(pct, 0), 100);
+    el.style.width = width + "%";
+    el.classList.toggle("hbar-over", pct > 100);
+    el.classList.toggle("hbar-warn", overClass === "warn");
+  }
+
   function renderResult(data) {
     const p = data.principal;
+    const ent = data.entradas || {};
     document.getElementById("hl-bitola").textContent = p.bitola_recomendada;
     document.getElementById("hl-awg").textContent = p.bitola_awg;
     document.getElementById("hl-secao-vdrop").textContent = p.secao_teorica_vdrop;
     document.getElementById("hl-secao-termica").textContent = p.secao_teorica_termica;
+    document.getElementById("hl-criterio").textContent = criterioRotulo(p.criterio_governante);
     document.getElementById("hl-queda-ini-v").textContent = p.queda_inicial_volts;
     document.getElementById("hl-queda-ini-p").textContent = p.queda_inicial_percentual;
     document.getElementById("hl-queda-fin-v").textContent = p.queda_final_volts;
@@ -114,11 +194,32 @@
     document.getElementById("hl-limite").textContent = p.queda_maxima_percentual;
     document.getElementById("hl-limite-termico").textContent = p.pct_limite_termico;
     document.getElementById("hl-comp").textContent = p.comprimento_total;
+    document.getElementById("hl-t-regime").textContent = p.temperatura_operacao;
+
+    const quedaFin = parseFloat(p.queda_final_percentual);
+    const quedaLim = parseFloat(p.queda_maxima_percentual);
+    const vdropPct = quedaLim > 0 ? (quedaFin / quedaLim) * 100 : 0;
+    setBarFill(document.getElementById("hl-bar-vdrop"), vdropPct);
+
+    const tReg = parseFloat(p.temperatura_operacao);
+    const tMax = parseFloat(ent.temp_max);
+    const pctLimite = parseFloat(p.pct_limite_termico);
+    let thermalPct = 0;
+    let thermalWarn = false;
+    if (tMax > 0 && !Number.isNaN(tReg)) {
+      thermalPct = (tReg / tMax) * 100;
+      thermalWarn = thermalPct > pctLimite && thermalPct < 90;
+    }
+    const thermalBar = document.getElementById("hl-bar-thermal");
+    setBarFill(thermalBar, thermalPct, thermalWarn ? "warn" : null);
+    if (thermalBar) {
+      thermalBar.classList.toggle("hbar-over", thermalPct > pctLimite);
+    }
 
     const badge = document.getElementById("status-badge");
     badge.textContent = p.status;
     badge.className =
-      "badge rounded-pill fs-6 " +
+      "badge rounded-pill highlight-status " +
       (p.aprovado || p.status === "APROVADO" ? "text-bg-success" : "text-bg-danger");
 
     const alertaBox = document.getElementById("alerta-termico-box");
@@ -138,14 +239,14 @@
     if (info && data.instalacao) {
       const i = data.instalacao;
       info.innerHTML =
-        'Instalação: <strong>' + i.rotulo + '</strong> · ' +
-        'condutores agrupados: <strong>' + i.n_condutores + '</strong> · ' +
-        'convecção efetiva: <strong>' + i.h_efetivo + ' W/(m²·°C)</strong>';
+        '<strong>' + i.rotulo + '</strong> · ' +
+        i.n_condutores + ' cond. · h = ' + i.h_efetivo + ' W/(m²·°C)';
       info.hidden = false;
     }
 
     renderTermica(data.termicas);
     renderReferencia(data.referencia);
+    renderSanidade(data.sanidade);
 
     const memorialPayload = {
       memorial: data.memorial,
@@ -229,6 +330,7 @@
     if (btnMemorial) btnMemorial.hidden = true;
     sessionStorage.removeItem(MEMORIAL_KEY);
     clearError();
+    renderSanidade(null);
     resultContent.hidden = true;
     emptyState.hidden = false;
   }
@@ -236,7 +338,7 @@
   function toggleRef() {
     const hidden = refWrap.hidden;
     refWrap.hidden = !hidden;
-    btnToggleRef.textContent = hidden ? "Ocultar" : "Mostrar";
+    btnToggleRef.textContent = hidden ? "Ocultar" : "Tabela";
   }
 
   function syncVdropPresetActive() {

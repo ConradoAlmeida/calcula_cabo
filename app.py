@@ -62,6 +62,100 @@ def _avaliar_aprovacao(queda_ok, termico_ok, alerta_termico):
     return "REPROVADO", False, alerta_termico or "queda", msg
 
 
+def _montar_sanidade(entradas, resultado, principal, linha_recomendada, instalacao, ok_queda, ok_termico):
+    """Checklist resumido para validação rápida do dimensionamento."""
+    secao_vdrop = resultado["secao_teorica_vdrop"]
+    secao_termica = resultado["secao_teorica_termica"]
+    secao_gov = max(secao_vdrop, secao_termica)
+    bitola_rec = resultado["bitola_recomendada"]
+    criterio = resultado.get("criterio_governante", "—")
+    criterio_rotulo = {
+        "vdrop": "Queda de tensão",
+        "termico": "Limite térmico",
+        "igual": "Empate (vdrop = térmico)",
+    }.get(criterio, criterio)
+
+    alerta = principal.get("alerta_termico", "ok")
+    alerta_ok = alerta == "ok"
+    bitola_cobre_gov = bitola_rec >= secao_gov - 0.05
+
+    checks = []
+    limite_mm2 = resultado.get("bitola_maxima_frota_mm2")
+    if limite_mm2:
+        checks.append({
+            "id": "limite_frota",
+            "rotulo": f"Bitola ≤ AWG {resultado.get('bitola_maxima_frota_awg', '—')}",
+            "ok": not resultado.get("limite_frota_excedido"),
+            "detalhe": (
+                f"limite {limite_mm2:g} mm² · necessária {bitola_rec:g} mm² "
+                f"(AWG {resultado['bitola_awg']})"
+            ),
+        })
+
+    checks.extend([
+        {
+            "id": "vdrop_regime",
+            "rotulo": "Vdrop em regime",
+            "ok": ok_queda,
+            "detalhe": (
+                f"{resultado['queda_final_percentual']:.2f}% "
+                f"(limite {resultado['queda_maxima_percentual']:.2f}%)"
+            ),
+        },
+        {
+            "id": "termico_limite",
+            "rotulo": "T_regime no limite",
+            "ok": ok_termico,
+            "detalhe": (
+                f"{principal['temperatura_operacao']} °C · "
+                f"limite {entradas['pct_limite_termico']:.0f}% de T_max"
+            ),
+        },
+        {
+            "id": "alerta_termico",
+            "rotulo": "Alerta térmico",
+            "ok": alerta_ok,
+            "detalhe": {"ok": "Dentro da faixa", "atencao": "Atenção", "critico": "Crítico / runaway"}.get(
+                alerta, alerta,
+            ),
+        },
+        {
+            "id": "bitola_governante",
+            "rotulo": "Bitola ≥ seção governante",
+            "ok": bitola_cobre_gov,
+            "detalhe": f"{bitola_rec:.2f} mm² ≥ {secao_gov:.2f} mm²",
+        },
+    ])
+
+    resumo = [
+        {"rotulo": "Critério governante", "valor": criterio_rotulo},
+        {"rotulo": "Cálculo p/ vdrop", "valor": f"{secao_vdrop:.2f} mm²"},
+        {"rotulo": "Cálculo p/ T_limite", "valor": f"{secao_termica:.2f} mm²"},
+        {"rotulo": "Comprimento (ida+volta)", "valor": f"{resultado['comprimento_total']:.2f} m"},
+        {"rotulo": "Instalação", "valor": instalacao["rotulo"]},
+        {"rotulo": "h efetivo", "valor": f"{instalacao['h_efetivo']} W/(m²·°C)"},
+    ]
+
+    if linha_recomendada:
+        resumo.extend([
+            {"rotulo": "Margem térmica", "valor": f"{linha_recomendada['margem_termica']} °C"},
+            {"rotulo": "P. Joule", "valor": f"{linha_recomendada['potencia']} W/m"},
+            {
+                "rotulo": "ρ (ini → regime)",
+                "valor": (
+                    f"{linha_recomendada['resistividade_inicial']} → "
+                    f"{linha_recomendada['resistividade_final']} Ω·mm²/m"
+                ),
+            },
+        ])
+
+    return {
+        "aprovado": principal.get("aprovado", False),
+        "checks": checks,
+        "resumo": resumo,
+    }
+
+
 def _to_float(valor, padrao):
     """Converte texto para float aceitando virgula decimal; usa padrao se vazio."""
     if valor is None:
@@ -181,6 +275,7 @@ def _calcular(entradas):
 
     linhas_termicas = []
     alerta_recomendada = None
+    linha_recomendada = None
     for bitola in obter_bitolas_analise_termica(resultado["bitola_recomendada"]):
         awg = mm2_para_awg(bitola)
         queda = calcular_queda_comparativa(
@@ -230,15 +325,24 @@ def _calcular(entradas):
 
         if bitola == resultado["bitola_recomendada"]:
             alerta_recomendada = alerta
+            linha_recomendada = linha
 
     status, aprovado, alerta_principal, msg_principal = _avaliar_aprovacao(
         adequada_queda, ok_rec, alerta_recomendada or "ok"
     )
+    if resultado.get("limite_frota_excedido"):
+        aprovado = False
+        status = "REPROVADO"
+        frota_msg = resultado["limite_frota_msg"]
+        msg_principal = f"{frota_msg} | {msg_principal}" if msg_principal else frota_msg
+
     principal["status"] = status
     principal["aprovado"] = aprovado
     principal["adequada"] = aprovado
     principal["alerta_termico"] = alerta_principal
     principal["alerta_termico_msg"] = msg_principal
+    principal["limite_frota_excedido"] = resultado.get("limite_frota_excedido", False)
+    principal["limite_frota_msg"] = resultado.get("limite_frota_msg")
 
     instalacao = {
         "metodo": entradas["metodo_instalacao"],
@@ -250,6 +354,9 @@ def _calcular(entradas):
     }
 
     memorial = gerar_memorial_calculo(entradas, resultado, h_efetivo)
+    sanidade = _montar_sanidade(
+        entradas, resultado, principal, linha_recomendada, instalacao, adequada_queda, ok_rec,
+    )
 
     return {
         "entradas": entradas,
@@ -258,6 +365,7 @@ def _calcular(entradas):
         "referencia": _tabela_referencia(),
         "instalacao": instalacao,
         "memorial": memorial,
+        "sanidade": sanidade,
     }
 
 

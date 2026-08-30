@@ -83,6 +83,38 @@ def test_cenario_320a_85pct_seleciona_95mm():
 
 
 # --------------------------------------------------------------------------
+# Limite de bitola da frota (AWG 0)
+# --------------------------------------------------------------------------
+def test_limite_frota_excedido_quando_bitola_maior_que_awg0():
+    """320 A @ 12 V exige bitola > AWG 0 — alerta de limite da frota."""
+    h = m.coef_conveccao_efetivo("exposto_ar", 1)
+    r = m.calcular_bitola_cb(
+        distancia=4, corrente=320, tensao=12, queda_percentual=5,
+        temp_ambiente=25, coef_conveccao=h, temp_maxima=200, pct_limite_termico=85,
+    )
+    assert r["bitola_recomendada"] > 53.5
+    assert r["limite_frota_excedido"]
+    assert "AWG 0" in r["limite_frota_msg"]
+
+
+def test_limite_frota_ok_caso_leve():
+    h = m.coef_conveccao_efetivo("exposto_ar", 1)
+    r = m.calcular_bitola_cb(
+        distancia=1, corrente=20, tensao=12, queda_percentual=5,
+        temp_ambiente=25, coef_conveccao=h, temp_maxima=200,
+    )
+    assert not r["limite_frota_excedido"]
+
+
+def test_limite_frota_desativado_com_zero(tmp_path):
+    ini = tmp_path / "config.ini"
+    ini.write_text("[limites_uas]\nbitola_maxima_mm2 = 0\n", encoding="utf-8")
+    cfg = m.carregar_config(str(ini))
+    out = m.avaliar_limite_bitola_frota(95.0, 76.0, cfg=cfg)
+    assert not out["limite_frota_excedido"]
+
+
+# --------------------------------------------------------------------------
 # Conversão mm² -> AWG (vem de config.ini)
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("mm2,awg", [

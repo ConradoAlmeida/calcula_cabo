@@ -48,6 +48,12 @@ _QUEDA_CIRCUITO_PADRAO = {
     "rotulo_comum": "Comum (propulsão, potência)",
 }
 
+# Limite de bitola da frota UAS (AWG 0 ≈ 53,5 mm²). bitola_maxima_mm2 <= 0 desativa.
+_LIMITES_UAS_PADRAO = {
+    "bitola_maxima_mm2": 53.5,
+    "bitola_maxima_awg": 0,
+}
+
 _BITOLAS_PADRAO = [
     0.5, 0.75, 1.0, 1.5, 2.5, 4.0, 6.0, 10.0,
     16.0, 25.0, 35.0, 50.0, 70.0, 95.0, 120.0,
@@ -113,6 +119,7 @@ class Config:
     instalacao_padrao: str = _INSTALACAO_METODO_PADRAO
     agrupamento: dict = field(default_factory=dict)
     queda_circuito: dict = field(default_factory=dict)
+    limites_uas: dict = field(default_factory=dict)
 
 
 def _num_awg(texto):
@@ -142,6 +149,7 @@ def carregar_config(caminho=None):
     instalacao_padrao = _INSTALACAO_METODO_PADRAO
     agrupamento = dict(_AGRUPAMENTO_PADRAO)
     queda_circuito = dict(_QUEDA_CIRCUITO_PADRAO)
+    limites_uas = dict(_LIMITES_UAS_PADRAO)
 
     caminho = caminho or CONFIG_PATH_PADRAO
     if os.path.exists(caminho):
@@ -206,6 +214,14 @@ def carregar_config(caminho=None):
                 if parser.has_option("queda_circuito", chave):
                     queda_circuito[chave] = parser.get("queda_circuito", chave).strip()
 
+        if parser.has_section("limites_uas"):
+            if parser.has_option("limites_uas", "bitola_maxima_mm2"):
+                limites_uas["bitola_maxima_mm2"] = parser.getfloat("limites_uas", "bitola_maxima_mm2")
+            if parser.has_option("limites_uas", "bitola_maxima_awg"):
+                limites_uas["bitola_maxima_awg"] = _num_awg(
+                    parser.get("limites_uas", "bitola_maxima_awg"),
+                )
+
     # Garante que o método padrão exista entre os métodos disponíveis.
     if instalacao_padrao not in instalacao and instalacao:
         instalacao_padrao = next(iter(instalacao))
@@ -227,6 +243,7 @@ def carregar_config(caminho=None):
         instalacao_padrao=instalacao_padrao,
         agrupamento=agrupamento,
         queda_circuito=queda_circuito,
+        limites_uas=limites_uas,
     )
 
 
@@ -312,6 +329,7 @@ def config_para_dict(cfg=None):
         "instalacao_padrao": cfg.instalacao_padrao,
         "agrupamento": {str(k): v for k, v in cfg.agrupamento.items()},
         "queda_circuito": dict(cfg.queda_circuito),
+        "limites_uas": dict(cfg.limites_uas),
     }
 
 
@@ -508,6 +526,41 @@ def calcular_secao_teorica_termica(
         else:
             lo = mid
     return round(hi, 2)
+
+
+def avaliar_limite_bitola_frota(bitola_mm2, secao_governante, cfg=None):
+    """Verifica se a bitola excede o limite configurado da frota (ex.: AWG 0)."""
+    cfg = cfg or CFG
+    limite = cfg.limites_uas.get("bitola_maxima_mm2", 0)
+    if not limite or limite <= 0:
+        return {
+            "limite_frota_excedido": False,
+            "limite_frota_msg": None,
+            "bitola_maxima_frota_mm2": None,
+            "bitola_maxima_frota_awg": None,
+        }
+
+    awg_lim = cfg.limites_uas.get("bitola_maxima_awg", "—")
+    excede = bitola_mm2 > limite + 1e-6 or secao_governante > limite + 1e-6
+    if not excede:
+        return {
+            "limite_frota_excedido": False,
+            "limite_frota_msg": None,
+            "bitola_maxima_frota_mm2": limite,
+            "bitola_maxima_frota_awg": awg_lim,
+        }
+
+    msg = (
+        f"Sem solução dentro do limite da frota (≤ AWG {awg_lim}, {limite:g} mm²). "
+        f"Bitola necessária: {bitola_mm2:g} mm² (AWG {mm2_para_awg(bitola_mm2)}). "
+        "Revise corrente, distância, queda permitida ou instalação."
+    )
+    return {
+        "limite_frota_excedido": True,
+        "limite_frota_msg": msg,
+        "bitola_maxima_frota_mm2": limite,
+        "bitola_maxima_frota_awg": awg_lim,
+    }
 
 
 def bitola_comercial_atende_ambos(
@@ -924,7 +977,7 @@ def calcular_bitola_cb(
     else:
         criterio_governante = "igual"
 
-    return {
+    resultado = {
         "secao_calculada": round(secao_teorica_vdrop, 2),
         "secao_teorica_vdrop": round(secao_teorica_vdrop, 2),
         "secao_teorica_termica": round(secao_teorica_termica, 2),
@@ -947,6 +1000,8 @@ def calcular_bitola_cb(
         "resistividade_operacao": round(resistividade_operacao, 6),
         "usa_rho_temperatura": usa_rho_t,
     }
+    resultado.update(avaliar_limite_bitola_frota(bitola_ideal, secao_governante))
+    return resultado
 
 
 def calcular_tempo_aquecimento(
