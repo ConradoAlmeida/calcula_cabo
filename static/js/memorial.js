@@ -74,22 +74,25 @@
   }
 
   function renderDiagramas(diagramas) {
-    if (!diagramas || !diagramas.length) return "";
+    if (!diagramas || !diagramas.length) return { html: "", nodes: [] };
 
-    return diagramas
-      .map(
-        (d) => `
+    const nodes = [];
+    const parts = diagramas.map((d) => {
+      const id = "mermaid-" + d.id;
+      nodes.push({ id: id, source: d.mermaid });
+      return `
       <section class="card shadow-sm memorial-secao memorial-diagrama" id="diag-${escapeHtml(d.id)}">
         <div class="card-body">
           <h2 class="h5 mb-2">${escapeHtml(d.titulo)}</h2>
           ${d.descricao ? '<p class="text-body-secondary small mb-3">' + escapeHtml(d.descricao) + "</p>" : ""}
           <div class="memorial-mermaid-wrap">
-            <pre class="mermaid">${escapeHtml(d.mermaid)}</pre>
+            <pre class="mermaid" id="${escapeHtml(id)}"></pre>
           </div>
         </div>
-      </section>`
-      )
-      .join("");
+      </section>`;
+    });
+
+    return { html: parts.join(""), nodes: nodes };
   }
 
   function renderSecao(secao) {
@@ -111,6 +114,40 @@
       </section>`;
   }
 
+  async function renderMermaidDiagrams(nodes) {
+    if (!nodes.length) return;
+
+    const preElements = nodes.map((n) => {
+      const el = document.getElementById(n.id);
+      if (el) el.textContent = n.source;
+      return el;
+    }).filter(Boolean);
+
+    if (!preElements.length) return;
+
+    if (typeof mermaid === "undefined") {
+      preElements.forEach((el) => {
+        el.classList.add("memorial-mermaid-fallback");
+      });
+      return;
+    }
+
+    try {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "dark",
+        securityLevel: "loose",
+        flowchart: { htmlLabels: true, curve: "basis" },
+      });
+      await mermaid.run({ nodes: preElements });
+    } catch (err) {
+      console.warn("Mermaid indisponível; exibindo texto do diagrama.", err);
+      preElements.forEach((el) => {
+        el.classList.add("memorial-mermaid-fallback");
+      });
+    }
+  }
+
   async function renderMemorial(memorial, principal) {
     document.title = memorial.titulo + " — Bitola DC";
     const subtitulo = principal
@@ -125,8 +162,9 @@
     document.getElementById("memorial-subtitulo").textContent = subtitulo;
 
     const diagContainer = document.getElementById("memorial-diagramas");
-    if (memorial.diagramas && memorial.diagramas.length) {
-      diagContainer.innerHTML = renderDiagramas(memorial.diagramas);
+    const diagramPack = renderDiagramas(memorial.diagramas);
+    if (diagramPack.html) {
+      diagContainer.innerHTML = diagramPack.html;
       diagContainer.hidden = false;
     } else {
       diagContainer.innerHTML = "";
@@ -136,39 +174,88 @@
     const container = document.getElementById("memorial-secoes");
     container.innerHTML = memorial.secoes.map(renderSecao).join("");
 
-    if (typeof mermaid !== "undefined" && memorial.diagramas && memorial.diagramas.length) {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: "dark",
-        securityLevel: "strict",
-        flowchart: { htmlLabels: true, curve: "basis" },
-      });
-      await mermaid.run({ querySelector: ".mermaid" });
+    await renderMermaidDiagrams(diagramPack.nodes);
+  }
+
+  function readStoredPayload() {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (err) {
+      console.warn("Falha ao ler sessionStorage do memorial.", err);
+      return null;
     }
   }
 
-  async function loadMemorial() {
+  function savePayload(payload) {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+      console.warn("Falha ao gravar sessionStorage; memorial usará API.", err);
+    }
+  }
+
+  async function fetchPayloadFromApi(entradas) {
+    const resp = await fetch("/api/calcular", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entradas),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      throw new Error(data.erro || "Erro ao recarregar o memorial.");
+    }
+    return data;
+  }
+
+  function showEmpty(message) {
     const empty = document.getElementById("memorial-empty");
     const content = document.getElementById("memorial-content");
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const msg = empty.querySelector("p.text-body-secondary");
+    if (msg && message) msg.textContent = message;
+    empty.hidden = false;
+    content.hidden = true;
+  }
 
-    if (!raw) {
-      empty.hidden = false;
-      content.hidden = true;
+  function showContent() {
+    document.getElementById("memorial-empty").hidden = true;
+    document.getElementById("memorial-content").hidden = false;
+  }
+
+  async function loadMemorial() {
+    let payload = readStoredPayload();
+
+    if (!payload || !payload.entradas) {
+      showEmpty("Execute um dimensionamento na calculadora para gerar o memorial.");
+      return;
+    }
+
+    if (!payload.memorial || !payload.principal) {
+      try {
+        payload = await fetchPayloadFromApi(payload.entradas);
+        savePayload({
+          memorial: payload.memorial,
+          principal: payload.principal,
+          entradas: payload.entradas,
+        });
+      } catch (err) {
+        showEmpty(err.message || "Não foi possível carregar o memorial.");
+        return;
+      }
+    }
+
+    if (!payload.memorial) {
+      showEmpty("O servidor não retornou dados de memorial para este cálculo.");
       return;
     }
 
     try {
-      const payload = JSON.parse(raw);
-      if (!payload.memorial) {
-        throw new Error("sem memorial");
-      }
       await renderMemorial(payload.memorial, payload.principal);
-      empty.hidden = true;
-      content.hidden = false;
+      showContent();
     } catch (err) {
-      empty.hidden = false;
-      content.hidden = true;
+      console.error(err);
+      showEmpty("Erro ao renderizar o memorial. Tente calcular novamente.");
     }
   }
 

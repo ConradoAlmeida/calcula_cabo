@@ -137,17 +137,17 @@
     renderTermica(data.termicas);
     renderReferencia(data.referencia);
 
-    if (data.memorial) {
-      sessionStorage.setItem(
-        MEMORIAL_KEY,
-        JSON.stringify({
-          memorial: data.memorial,
-          principal: data.principal,
-          entradas: data.entradas,
-        })
-      );
-      if (btnMemorial) btnMemorial.hidden = false;
+    const memorialPayload = {
+      memorial: data.memorial,
+      principal: data.principal,
+      entradas: data.entradas,
+    };
+    try {
+      sessionStorage.setItem(MEMORIAL_KEY, JSON.stringify(memorialPayload));
+    } catch (err) {
+      console.warn("sessionStorage indisponível; memorial recarregará via API.", err);
     }
+    if (btnMemorial) btnMemorial.hidden = false;
 
     emptyState.hidden = true;
     resultContent.hidden = false;
@@ -233,4 +233,11 @@
   btnReset.addEventListener("click", resetForm);
   btnDownload.addEventListener("click", baixarRelatorio);
   btnToggleRef.addEventListener("click", toggleRef);
+
+  if (btnMemorial) {
+    btnMemorial.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      window.location.href = "/memorial";
+    });
+  }
 })();
