@@ -56,30 +56,28 @@ def test_dimensionamento_com_rho_t_pode_aumentar_bitola():
 
 
 def test_bitola_recomendada_max_entre_vdrop_e_termico():
-    """Recomendada = maior entre seção p/ vdrop e seção p/ T_limite."""
-    h = m.coef_conveccao_efetivo("ar_livre", 1)
+    """Recomendada = menor comercial >= max(cálculo p/ vdrop; cálculo p/ T_limite)."""
+    h = m.coef_conveccao_efetivo("exposto_ar", 1)
     r = m.calcular_bitola_cb(
         distancia=4, corrente=300, tensao=100, queda_percentual=3,
         temp_ambiente=25, coef_conveccao=h, temp_maxima=200,
         pct_limite_termico=85,
     )
-    assert r["bitola_recomendada"] == m.max_bitola_comercial(
-        r["bitola_vdrop"], r["bitola_termica"],
-    )
+    governante = max(r["secao_teorica_vdrop"], r["secao_teorica_termica"])
+    assert r["bitola_recomendada"] == m.menor_bitola_comercial_para_secao(governante)
     assert r["bitola_recomendada"] == 70.0
     assert r["queda_final_percentual"] <= 3
 
 
 def test_cenario_320a_85pct_seleciona_95mm():
     """320 A / 4 m / 5%: térmica governa com 85% de T_max (95 mm², não 120)."""
-    h = m.coef_conveccao_efetivo("eletroduto_aparente", 2)
+    h = m.coef_conveccao_efetivo("conduite", 2)
     r = m.calcular_bitola_cb(
         distancia=4, corrente=320, tensao=100, queda_percentual=5,
         temp_ambiente=25, coef_conveccao=h, temp_maxima=200,
         pct_limite_termico=85,
     )
-    assert r["bitola_vdrop"] < r["bitola_termica"]
-    assert r["bitola_termica"] == 95.0
+    assert r["secao_teorica_vdrop"] < r["secao_teorica_termica"]
     assert r["bitola_recomendada"] == 95.0
     assert r["criterio_governante"] == "termico"
 
@@ -150,7 +148,7 @@ def test_margem_termica_exemplo_usuario():
 
 def test_runaway_termico_classificado_critico():
     """Runaway térmico (T regime infinita) deve ser alerta crítico, não ok."""
-    h = m.coef_conveccao_efetivo("ar_livre", 1)
+    h = m.coef_conveccao_efetivo("exposto_ar", 1)
     t = m.calcular_tempo_aquecimento(25, 300, 200, 25, None, h)
     assert t["temp_regimen_value"] == float("inf")
     assert t["alerta_termico"] == "critico"
@@ -242,7 +240,7 @@ def test_override_tabela_awg(tmp_path):
 # --------------------------------------------------------------------------
 def test_metodos_instalacao_carregados():
     ids = {mt["id"] for mt in m.metodos_instalacao()}
-    assert {"ar_livre", "eletroduto_embutido", "enterrado"}.issubset(ids)
+    assert {"exposto_ar", "compartimento_fechado", "embutido_estrutura"}.issubset(ids)
 
 
 def test_fator_agrupamento():
@@ -279,16 +277,16 @@ def test_fator_agrupamento_interpolacao_entre_chaves():
 
 def test_agrupamento_20_muito_pior_que_1():
     """20 condutores devem reduzir h bem mais que 8 (faixa 10–20 = 50%)."""
-    h1 = m.coef_conveccao_efetivo("ar_livre", 1)
-    h20 = m.coef_conveccao_efetivo("ar_livre", 20)
+    h1 = m.coef_conveccao_efetivo("exposto_ar", 1)
+    h20 = m.coef_conveccao_efetivo("exposto_ar", 20)
     assert h20 == pytest.approx(h1 * 0.50, rel=1e-6)
-    assert h20 < m.coef_conveccao_efetivo("ar_livre", 8)
+    assert h20 < m.coef_conveccao_efetivo("exposto_ar", 8)
 
 
 def test_cenario_baixa_corrente_agrupamento():
     """Com carga térmica baixa, ΔT absoluto é pequeno mas n=20 aquece mais que n=1."""
-    h1 = m.coef_conveccao_efetivo("ar_livre", 1)
-    h20 = m.coef_conveccao_efetivo("ar_livre", 20)
+    h1 = m.coef_conveccao_efetivo("exposto_ar", 1)
+    h20 = m.coef_conveccao_efetivo("exposto_ar", 20)
     t1 = m.calcular_tempo_aquecimento(2.5, 3, 200, 25, None, h1)
     t20 = m.calcular_tempo_aquecimento(2.5, 3, 200, 25, None, h20)
     assert 25.4 <= t1["temp_regimen_value"] <= 25.6
@@ -297,29 +295,29 @@ def test_cenario_baixa_corrente_agrupamento():
 
 
 def test_coef_efetivo_pior_instalacao_menor_h():
-    ar = m.coef_conveccao_efetivo("ar_livre", 1)
-    enterrado = m.coef_conveccao_efetivo("enterrado", 1)
-    assert enterrado < ar
+    ar = m.coef_conveccao_efetivo("exposto_ar", 1)
+    embutido_estrutura = m.coef_conveccao_efetivo("embutido_estrutura", 1)
+    assert embutido_estrutura < ar
 
 
 def test_coef_efetivo_agrupamento_reduz_h():
-    h1 = m.coef_conveccao_efetivo("ar_livre", 1)
-    h4 = m.coef_conveccao_efetivo("ar_livre", 4)
+    h1 = m.coef_conveccao_efetivo("exposto_ar", 1)
+    h4 = m.coef_conveccao_efetivo("exposto_ar", 4)
     assert h4 < h1
 
 
 def test_instalacao_pior_aquece_mais():
-    """Mesma corrente: eletroduto embutido deve resultar em T maior que ar livre."""
-    h_ar = m.coef_conveccao_efetivo("ar_livre", 1)
-    h_enc = m.coef_conveccao_efetivo("eletroduto_embutido", 1)
+    """Mesma corrente: compartimento fechado deve resultar em T maior que exposto ao ar."""
+    h_ar = m.coef_conveccao_efetivo("exposto_ar", 1)
+    h_enc = m.coef_conveccao_efetivo("compartimento_fechado", 1)
     t_ar = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h_ar)
     t_enc = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h_enc)
     assert t_enc["temp_regimen_value"] > t_ar["temp_regimen_value"]
 
 
 def test_agrupamento_aquece_mais():
-    h1 = m.coef_conveccao_efetivo("ar_livre", 1)
-    h6 = m.coef_conveccao_efetivo("ar_livre", 6)
+    h1 = m.coef_conveccao_efetivo("exposto_ar", 1)
+    h6 = m.coef_conveccao_efetivo("exposto_ar", 6)
     t1 = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h1)
     t6 = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, h6)
     assert t6["temp_regimen_value"] > t1["temp_regimen_value"]
@@ -328,10 +326,10 @@ def test_agrupamento_aquece_mais():
 def test_memorial_contem_secoes_principais():
     entradas = {
         "distancia": 1.0, "corrente": 49.0, "tensao": 12.0, "queda_percentual": 5.0,
-        "temp_amb": 25.0, "temp_max": 200.0, "diametro": None,
-        "metodo_instalacao": "ar_livre", "n_condutores": 1,
+        "temp_amb": 25.0, "temp_max": 200.0,
+        "metodo_instalacao": "exposto_ar", "n_condutores": 1,
     }
-    h = m.coef_conveccao_efetivo("ar_livre", 1)
+    h = m.coef_conveccao_efetivo("exposto_ar", 1)
     resultado = m.calcular_bitola_cb(
         entradas["distancia"], entradas["corrente"], entradas["tensao"],
         entradas["queda_percentual"], temp_ambiente=25, coef_conveccao=h, temp_maxima=200,
@@ -346,7 +344,7 @@ def test_memorial_contem_secoes_principais():
 
 def test_comprimento_termico_escala_potencia_total():
     """Potência total escala com o comprimento; W/m e T_regime permanecem constantes."""
-    h = m.coef_conveccao_efetivo("ar_livre", 1)
+    h = m.coef_conveccao_efetivo("exposto_ar", 1)
     t4 = m.calcular_tempo_aquecimento(25, 100, 200, 25, None, h, comprimento=4)
     t10 = m.calcular_tempo_aquecimento(25, 100, 200, 25, None, h, comprimento=10)
     assert t4["temp_regimen_value"] == pytest.approx(t10["temp_regimen_value"])
@@ -359,7 +357,7 @@ def test_comprimento_condutor_metade_do_loop():
 
 
 def test_queda_comparativa_usa_comprimento_condutor_na_termica():
-    h = m.coef_conveccao_efetivo("ar_livre", 1)
+    h = m.coef_conveccao_efetivo("exposto_ar", 1)
     q = m.calcular_queda_comparativa(
         25, 8, 100, 100, temp_ambiente=25, h_conveccao=h, temp_limite=200,
     )

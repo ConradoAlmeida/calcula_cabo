@@ -69,18 +69,18 @@ _CAPACIDADE_PADRAO = {
 
 # Métodos de instalação -> coeficiente de convecção efetivo (W/(m²·°C)).
 _INSTALACAO_PADRAO = {
-    "ar_livre": 10.0,
-    "eletroduto_aparente": 6.0,
-    "eletroduto_embutido": 4.0,
-    "enterrado": 3.0,
+    "exposto_ar": 10.0,
+    "conduite": 6.0,
+    "compartimento_fechado": 4.0,
+    "embutido_estrutura": 3.0,
 }
 _INSTALACAO_ROTULOS_PADRAO = {
-    "ar_livre": "Ao ar livre (exposto)",
-    "eletroduto_aparente": "Em eletroduto aparente",
-    "eletroduto_embutido": "Em eletroduto embutido na parede",
-    "enterrado": "Enterrado / subterrâneo",
+    "exposto_ar": "Exposto ao ar (fluxo livre)",
+    "conduite": "Dentro de conduite / chicote",
+    "compartimento_fechado": "Compartimento fechado (sem ventilação)",
+    "embutido_estrutura": "Embutido na estrutura",
 }
-_INSTALACAO_METODO_PADRAO = "ar_livre"
+_INSTALACAO_METODO_PADRAO = "exposto_ar"
 
 # Fator aplicado ao coeficiente de convecção conforme o nº de condutores
 # agrupados lado a lado (mais condutores juntos = pior dissipação).
@@ -330,9 +330,9 @@ def imprimir_tabela(titulo, cabecalhos, linhas, nota=None):
 def texto_criterio_selecao_bitola(pct_limite=85.0):
     """Critério resumido de escolha da bitola comercial (relatório e UI)."""
     return (
-        "Criterio de selecao: bitola comercial p/ vdrop = menor secao com Vdrop T.final <= limite (%); "
-        f"bitola p/ T_limite = menor secao com T_regime <= {pct_limite:g}% de T_max; "
-        "bitola recomendada = maior entre as duas."
+        "Criterio de selecao: calculo teorico p/ vdrop (mm2) e calculo teorico p/ T_limite "
+        f"(T_regime <= {pct_limite:g}% de T_max); bitola recomendada = menor comercial "
+        ">= maior entre os dois calculos."
     )
 
 
@@ -475,10 +475,70 @@ def classificar_alerta_termico(temp_regimen, temp_maxima, pct_limite=85.0):
     return "ok"
 
 
-def max_bitola_comercial(bitola_a, bitola_b):
-    """Retorna a maior bitola comercial entre duas da tabela."""
-    tabela = CFG.bitolas_comerciais
-    return tabela[max(tabela.index(bitola_a), tabela.index(bitola_b))]
+def menor_bitola_comercial_para_secao(secao_mm2):
+    """Menor bitola comercial com área >= secao_mm2."""
+    for bitola in CFG.bitolas_comerciais:
+        if bitola >= secao_mm2:
+            return bitola
+    return CFG.bitolas_comerciais[-1]
+
+
+def calcular_secao_teorica_termica(
+    corrente,
+    temp_maxima,
+    temp_ambiente,
+    coef_conveccao,
+    distancia,
+    pct_limite_termico,
+    diametro_externo=None,
+):
+    """Seção mínima (mm²) com T_regime <= pct_limite % de T_max (busca contínua)."""
+    if temp_maxima <= 0:
+        return 0.1
+
+    lo, hi = 0.1, max(CFG.bitolas_comerciais) * 2.0
+    for _ in range(64):
+        mid = (lo + hi) / 2.0
+        ok, _ = bitola_atende_termico_limite(
+            mid, corrente, temp_maxima, temp_ambiente,
+            coef_conveccao, diametro_externo, distancia, pct_limite_termico,
+        )
+        if ok:
+            hi = mid
+        else:
+            lo = mid
+    return round(hi, 2)
+
+
+def bitola_comercial_atende_ambos(
+    bitola,
+    comprimento_total,
+    corrente,
+    tensao,
+    queda_tensao_max,
+    *,
+    distancia,
+    temp_ambiente,
+    coef_conveccao,
+    diametro_externo,
+    temp_maxima,
+    pct_limite_termico,
+):
+    """Verifica queda em regime e limite térmico na bitola comercial."""
+    ok_v, queda = bitola_atende_queda(
+        bitola, comprimento_total, corrente, tensao, queda_tensao_max,
+        temp_ambiente=temp_ambiente,
+        coef_conveccao=coef_conveccao,
+        diametro_externo=diametro_externo,
+        temp_maxima=temp_maxima,
+    )
+    if not ok_v:
+        return False, queda
+    ok_t, _ = bitola_atende_termico_limite(
+        bitola, corrente, temp_maxima, temp_ambiente,
+        coef_conveccao, diametro_externo, distancia, pct_limite_termico,
+    )
+    return ok_t, queda
 
 
 def bitola_atende_queda(
@@ -762,10 +822,11 @@ def calcular_bitola_cb(
     pct_limite_termico=None,
 ):
     """
-    Dimensiona a bitola comercial: maior entre a mínima por queda e a mínima por T_limite.
+    Dimensiona a bitola comercial a partir de duas seções teóricas (mm²).
 
-    Quando ``temp_ambiente`` e ``coef_conveccao`` são informados, usa ρ(T_regime).
-    ``pct_limite_termico`` (% de T_max, padrão 85) define o teto de T_regime na seleção térmica.
+    - Cálculo p/ vdrop: S = ρ(T_amb) · L · I / V_queda_max
+    - Cálculo p/ T_limite: menor S com T_regime ≤ pct_limite % de T_max
+    - Bitola recomendada: menor comercial ≥ max(S_vdrop, S_termico), validada em regime
     """
     if pct_limite_termico is None:
         pct_limite_termico = CFG.padroes.get("pct_limite_termico", 85.0)
@@ -781,62 +842,60 @@ def calcular_bitola_cb(
 
     secao_teorica_vdrop = (resistividade_estimada * comprimento_total * corrente) / queda_tensao_max
 
+    if usa_rho_t and temp_maxima is not None:
+        secao_teorica_termica = calcular_secao_teorica_termica(
+            corrente, temp_maxima, temp_ambiente, coef_conveccao, distancia,
+            pct_limite_termico, diametro_externo,
+        )
+    else:
+        secao_teorica_termica = secao_teorica_vdrop
+
+    secao_governante = max(secao_teorica_vdrop, secao_teorica_termica)
     indice_inicial = 0
     for i, bitola in enumerate(CFG.bitolas_comerciais):
-        if bitola >= secao_teorica_vdrop:
+        if bitola >= secao_governante:
             indice_inicial = i
             break
     else:
         indice_inicial = len(CFG.bitolas_comerciais) - 1
 
-    bitola_vdrop = None
-    for bitola in CFG.bitolas_comerciais[indice_inicial:]:
-        ok, _ = bitola_atende_queda(
-            bitola, comprimento_total, corrente, tensao, queda_tensao_max,
-            temp_ambiente=temp_ambiente if usa_rho_t else None,
-            coef_conveccao=coef_conveccao if usa_rho_t else None,
-            diametro_externo=diametro_externo,
-            temp_maxima=temp_maxima,
-        )
-        if ok:
-            bitola_vdrop = bitola
-            break
-    if bitola_vdrop is None:
-        bitola_vdrop = CFG.bitolas_comerciais[-1]
-
+    bitola_ideal = None
+    queda_escolhida = None
     if usa_rho_t and temp_maxima is not None:
-        bitola_termica = None
         for bitola in CFG.bitolas_comerciais[indice_inicial:]:
-            ok, _ = bitola_atende_termico_limite(
-                bitola, corrente, temp_maxima, temp_ambiente,
-                coef_conveccao, diametro_externo, distancia, pct_limite_termico,
+            ok, queda_result = bitola_comercial_atende_ambos(
+                bitola, comprimento_total, corrente, tensao, queda_tensao_max,
+                distancia=distancia,
+                temp_ambiente=temp_ambiente,
+                coef_conveccao=coef_conveccao,
+                diametro_externo=diametro_externo,
+                temp_maxima=temp_maxima,
+                pct_limite_termico=pct_limite_termico,
             )
             if ok:
-                bitola_termica = bitola
+                bitola_ideal = bitola
+                queda_escolhida = queda_result
                 break
-        if bitola_termica is None:
-            bitola_termica = CFG.bitolas_comerciais[-1]
     else:
-        bitola_termica = bitola_vdrop
-
-    bitola_ideal = max_bitola_comercial(bitola_vdrop, bitola_termica)
-
-    if usa_rho_t:
-        queda_escolhida = calcular_queda_comparativa(
-            bitola_ideal, comprimento_total, corrente, tensao,
-            temp_ambiente=temp_ambiente,
-            h_conveccao=coef_conveccao,
-            diametro_externo=diametro_externo,
-            temp_limite=temp_maxima,
-        )
-        temperatura_operacao = queda_escolhida["temperatura_final"]
-        resistividade_operacao = resistividade_em_temperatura(temperatura_operacao)
-    else:
+        bitola_ideal = menor_bitola_comercial_para_secao(secao_governante)
         queda_escolhida = calcular_queda_para_bitola(
             bitola_ideal, comprimento_total, corrente, tensao,
         )
-        temperatura_operacao = queda_escolhida["temperatura_operacao"]
-        resistividade_operacao = queda_escolhida["resistividade_operacao"]
+
+    if bitola_ideal is None:
+        bitola_ideal = CFG.bitolas_comerciais[-1]
+        if usa_rho_t:
+            queda_escolhida = calcular_queda_comparativa(
+                bitola_ideal, comprimento_total, corrente, tensao,
+                temp_ambiente=temp_ambiente,
+                h_conveccao=coef_conveccao,
+                diametro_externo=diametro_externo,
+                temp_limite=temp_maxima,
+            )
+        else:
+            queda_escolhida = calcular_queda_para_bitola(
+                bitola_ideal, comprimento_total, corrente, tensao,
+            )
 
     if usa_rho_t:
         queda_inicial_volts = queda_escolhida["queda_inicial_volts"]
@@ -851,19 +910,25 @@ def calcular_bitola_cb(
         queda_final_percentual = queda_inicial_percentual
         resistencia_ohm = queda_escolhida["resistencia_ohm"]
 
-    if bitola_vdrop == bitola_termica:
-        criterio_governante = "igual"
-    elif bitola_ideal == bitola_vdrop:
-        criterio_governante = "vdrop"
+    if usa_rho_t:
+        temperatura_operacao = queda_escolhida["temperatura_final"]
+        resistividade_operacao = resistividade_em_temperatura(temperatura_operacao)
     else:
+        temperatura_operacao = queda_escolhida["temperatura_operacao"]
+        resistividade_operacao = queda_escolhida["resistividade_operacao"]
+
+    if secao_teorica_vdrop > secao_teorica_termica:
+        criterio_governante = "vdrop"
+    elif secao_teorica_termica > secao_teorica_vdrop:
         criterio_governante = "termico"
+    else:
+        criterio_governante = "igual"
 
     return {
         "secao_calculada": round(secao_teorica_vdrop, 2),
-        "bitola_vdrop": bitola_vdrop,
-        "bitola_vdrop_awg": mm2_para_awg(bitola_vdrop),
-        "bitola_termica": bitola_termica,
-        "bitola_termica_awg": mm2_para_awg(bitola_termica),
+        "secao_teorica_vdrop": round(secao_teorica_vdrop, 2),
+        "secao_teorica_termica": round(secao_teorica_termica, 2),
+        "secao_governante": round(secao_governante, 2),
         "pct_limite_termico": pct_limite_termico,
         "criterio_governante": criterio_governante,
         "bitola_recomendada": bitola_ideal,
@@ -1084,7 +1149,6 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     queda_pct = entradas["queda_percentual"]
     temp_amb = entradas["temp_amb"]
     temp_max = entradas["temp_max"]
-    diametro_in = entradas.get("diametro")
     metodo_id = entradas.get("metodo_instalacao", cfg.instalacao_padrao)
     metodo_rotulo = cfg.instalacao_rotulos.get(metodo_id, metodo_id)
     n_cond = entradas.get("n_condutores", 1)
@@ -1116,7 +1180,8 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             (
                 "Objetivo: dimensionar a bitola comercial de cobre pela queda em regime "
                 "(Vdrop T. final) e pelo limite térmico (T_regime ≤ % configurável de T_max). "
-                "Adota-se a maior seção comercial entre as duas."
+                "Calculam-se duas seções teóricas (mm²); adota-se a menor bitola comercial "
+                "≥ maior entre elas, validada em regime."
             ),
             (
                 f"Limites de queda por tipo de circuito: {critico_pct:g}% — "
@@ -1157,10 +1222,6 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             {"rotulo": "Método de instalação", "valor": metodo_rotulo},
             {"rotulo": "Condutores agrupados", "valor": str(n_cond)},
             {"rotulo": "Coeficiente de convecção efetivo", "valor": f"{_fmt(h_efetivo)} W/(m²·°C)"},
-            {
-                "rotulo": "Diâmetro externo",
-                "valor": f"{_fmt(diametro_in)} mm" if diametro_in else "estimado a partir da bitola",
-            },
         ],
     })
 
@@ -1206,11 +1267,11 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             },
             {
                 "titulo": "Critério de seleção da bitola comercial",
-                "formula": "max(seção p/ vdrop; seção p/ T_limite)",
+                "formula": "max(cálculo p/ vdrop; cálculo p/ T_limite)",
                 "calculo": (
-                    f"Seção p/ vdrop: {_fmt(resultado['bitola_vdrop'])} mm² (AWG {resultado['bitola_vdrop_awg']}); "
-                    f"seção p/ T_limite ({_fmt(pct_limite)}% de T_max): "
-                    f"{_fmt(resultado['bitola_termica'])} mm² (AWG {resultado['bitola_termica_awg']}); "
+                    f"Cálculo p/ vdrop: {_fmt(resultado['secao_teorica_vdrop'])} mm²; "
+                    f"cálculo p/ T_limite ({_fmt(pct_limite)}% de T_max): "
+                    f"{_fmt(resultado['secao_teorica_termica'])} mm²; "
                     f"recomendada: {_fmt(bitola)} mm² (AWG {resultado['bitola_awg']})."
                 ),
             },
@@ -1224,10 +1285,11 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
 
     passos_dim.append({
         "titulo": "Bitola comercial adotada",
-        "formula": "maior seção comercial entre vdrop e T_limite",
+        "formula": "menor comercial ≥ max(cálculo p/ vdrop; cálculo p/ T_limite)",
         "calculo": (
             f"{_fmt(bitola)} mm² (AWG {resultado['bitola_awg']}) — "
-            f"seção teórica (vdrop): {_fmt(resultado['secao_calculada'])} mm²; "
+            f"cálculo p/ vdrop: {_fmt(resultado['secao_teorica_vdrop'])} mm²; "
+            f"cálculo p/ T_limite: {_fmt(resultado['secao_teorica_termica'])} mm²; "
             f"critério governante: {resultado.get('criterio_governante', '—')}"
         ),
     })
@@ -1241,7 +1303,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     queda = calcular_queda_comparativa(
         bitola, comprimento, corrente, tensao,
         temp_ambiente=temp_amb, h_conveccao=h_efetivo,
-        diametro_externo=diametro_in, temp_limite=temp_max, cfg=cfg,
+        diametro_externo=None, temp_limite=temp_max, cfg=cfg,
     )
     rho_ini = resistividade_em_temperatura(queda["temperatura_inicial"], cfg)
     rho_fin = resistividade_em_temperatura(queda["temperatura_final"], cfg)
@@ -1277,14 +1339,14 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     })
 
     diametro_ext, area_lat = parametros_dissipacao(
-        bitola, diametro_in, comprimento_termico, cfg=cfg,
+        bitola, None, comprimento_termico, cfg=cfg,
     )
     equilibrio = temperatura_regime_para_bitola(
-        bitola, corrente, temp_amb, h_efetivo, diametro_in, temp_max,
+        bitola, corrente, temp_amb, h_efetivo, None, temp_max,
         comprimento_termico, cfg,
     )
     termico = calcular_tempo_aquecimento(
-        bitola, corrente, temp_max, temp_amb, diametro_in, h_efetivo,
+        bitola, corrente, temp_max, temp_amb, None, h_efetivo,
         comprimento_termico,
     )
 
@@ -1368,15 +1430,15 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
         q = calcular_queda_comparativa(
             b, comprimento, corrente, tensao,
             temp_ambiente=temp_amb, h_conveccao=h_efetivo,
-            diametro_externo=diametro_in, temp_limite=temp_max, cfg=cfg,
+            diametro_externo=None, temp_limite=temp_max, cfg=cfg,
         )
         t = calcular_tempo_aquecimento(
-            b, corrente, temp_max, temp_amb, diametro_in, h_efetivo,
+            b, corrente, temp_max, temp_amb, None, h_efetivo,
             comprimento_termico, pct_limite_termico=pct_limite,
         )
         ok_queda = q["queda_final_percentual"] <= queda_pct
         ok_termico, _ = bitola_atende_termico_limite(
-            b, corrente, temp_max, temp_amb, h_efetivo, diametro_in,
+            b, corrente, temp_max, temp_amb, h_efetivo, None,
             comprimento_termico, pct_limite,
         )
         if ok_queda and ok_termico:
@@ -1493,7 +1555,6 @@ def salvar_relatorio_txt(
         f"- Temperatura ambiente (C): {dados_entrada['temp_amb']}",
         f"- Temperatura maxima do cabo (C): {dados_entrada['temp_max']}",
         f"- Limite termico T_regime (% de T_max): {dados_entrada.get('pct_limite_termico', CFG.padroes.get('pct_limite_termico', 85))}",
-        f"- Diametro externo (mm): {dados_entrada['diametro'] if dados_entrada['diametro'] else 'estimado'}",
         f"- Metodo de instalacao: {metodo_rotulo}",
         f"- Condutores agrupados: {n_condutores}",
         f"- Coef. conveccao efetivo (W/m2.C): {h_efetivo:.2f}",
@@ -1530,10 +1591,9 @@ def salvar_relatorio_txt(
     secao_resumo = [
         "RESUMO EXECUTIVO",
         f"- Bitola recomendada: {resultado_principal['bitola_recomendada']:.2f} mm2 (AWG {resultado_principal['bitola_awg']})",
-        f"- Secao p/ vdrop: {resultado_principal['bitola_vdrop']:.2f} mm2 (AWG {resultado_principal['bitola_vdrop_awg']})",
-        f"- Secao p/ T_limite ({resultado_principal.get('pct_limite_termico', 85):g}% de T_max): "
-        f"{resultado_principal['bitola_termica']:.2f} mm2 (AWG {resultado_principal['bitola_termica_awg']})",
-        f"- Secao teorica (vdrop): {resultado_principal['secao_calculada']:.2f} mm2",
+        f"- Calculo p/ vdrop: {resultado_principal['secao_teorica_vdrop']:.2f} mm2",
+        f"- Calculo p/ T_limite ({resultado_principal.get('pct_limite_termico', 85):g}% de T_max): "
+        f"{resultado_principal['secao_teorica_termica']:.2f} mm2",
         f"- Comprimento total considerado (ida e volta): {resultado_principal['comprimento_total']:.2f} m",
         f"- Vdrop inicial (largada): {resultado_principal['queda_inicial_volts']:.2f} V ({resultado_principal['queda_inicial_percentual']:.2f}%)",
         f"- Vdrop em regime (T final): {resultado_principal['queda_final_volts']:.2f} V ({resultado_principal['queda_final_percentual']:.2f}%)",
@@ -1588,7 +1648,6 @@ def gerar_nome_relatorio_por_inputs(dados_entrada, incluir_tabela_referencia=Fal
         f"_q{_normalizar_numero_para_nome(dados_entrada['queda_percentual'])}"
         f"_ta{_normalizar_numero_para_nome(dados_entrada['temp_amb'])}"
         f"_tm{_normalizar_numero_para_nome(dados_entrada['temp_max'])}"
-        f"_de{_normalizar_numero_para_nome(dados_entrada['diametro']) if dados_entrada['diametro'] is not None else 'estimado'}"
         f"_ref{'sim' if incluir_tabela_referencia else 'nao'}"
     )
 
@@ -1599,7 +1658,6 @@ def gerar_nome_relatorio_por_inputs(dados_entrada, incluir_tabela_referencia=Fal
         str(dados_entrada['queda_percentual']),
         str(dados_entrada['temp_amb']),
         str(dados_entrada['temp_max']),
-        str(dados_entrada['diametro']),
         str(dados_entrada.get('metodo_instalacao', CFG.instalacao_padrao)),
         str(dados_entrada.get('n_condutores', 1)),
         str(dados_entrada.get('pct_limite_termico', CFG.padroes.get('pct_limite_termico', 85))),
@@ -1644,9 +1702,6 @@ def main():
         ).strip()
         pct_limite_termico = float(pct_limite_input) if pct_limite_input else padroes['pct_limite_termico']
 
-        diametro_input = input("Diâmetro externo do cabo em mm (opcional, Enter para estimar): ")
-        diametro = float(diametro_input) if diametro_input else None
-
         dados_entrada = {
             'distancia': distancia,
             'corrente': corrente,
@@ -1655,7 +1710,6 @@ def main():
             'temp_amb': temp_amb,
             'temp_max': temp_max,
             'pct_limite_termico': pct_limite_termico,
-            'diametro': diametro
         }
 
         salvar_txt = input("Deseja salvar um relatorio completo em TXT? (s/n): ").strip().lower()
@@ -1683,7 +1737,7 @@ def main():
         resultado = calcular_bitola_cb(
             distancia, corrente, tensao, queda_percentual,
             temp_ambiente=temp_amb, coef_conveccao=h_efetivo,
-            diametro_externo=diametro, temp_maxima=temp_max,
+            diametro_externo=None, temp_maxima=temp_max,
             pct_limite_termico=pct_limite_termico,
         )
 
@@ -1722,16 +1776,16 @@ def main():
             queda = calcular_queda_comparativa(
                 bitola, resultado['comprimento_total'], corrente, tensao,
                 temp_ambiente=temp_amb, h_conveccao=h_efetivo,
-                diametro_externo=diametro, temp_limite=temp_max,
+                diametro_externo=None, temp_limite=temp_max,
             )
             termico = calcular_tempo_aquecimento(
-                bitola, corrente, temp_max, temp_amb, diametro, h_efetivo,
+                bitola, corrente, temp_max, temp_amb, None, h_efetivo,
                 comprimento_termico, pct_limite_termico=pct_limite_termico,
             )
 
             ok_queda = queda['queda_final_percentual'] <= resultado['queda_maxima_percentual']
             ok_termico, _ = bitola_atende_termico_limite(
-                bitola, corrente, temp_max, temp_amb, h_efetivo, diametro,
+                bitola, corrente, temp_max, temp_amb, h_efetivo, None,
                 comprimento_termico, pct_limite_termico,
             )
             status_termico = "OK" if ok_queda and ok_termico else "REPROVADO"
@@ -1767,11 +1821,11 @@ def main():
         )
 
         print(
-            f"\nSecao p/ vdrop: {resultado['bitola_vdrop']:.2f} mm2 | "
-            f"Secao p/ T_limite: {resultado['bitola_termica']:.2f} mm2 | "
+            f"\nCalculo p/ vdrop: {resultado['secao_teorica_vdrop']:.2f} mm2 | "
+            f"Calculo p/ T_limite: {resultado['secao_teorica_termica']:.2f} mm2 | "
             f"Recomendada: {resultado['bitola_recomendada']:.2f} mm2"
         )
-        print(f"\nParametros termicos: Tamb={temp_amb}C | Tmax={temp_max}C | Diametro externo={diametro if diametro else 'estimado'}")
+        print(f"\nParametros termicos: Tamb={temp_amb}C | Tmax={temp_max}C")
         
         print("\n" + "="*80 + "\n")
         

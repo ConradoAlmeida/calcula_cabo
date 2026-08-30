@@ -155,7 +155,7 @@ A análise térmica considera **como** o cabo é instalado e **quantos** conduto
 h_efetivo = h(método de instalação) × fator(nº de condutores agrupados)
 ```
 
-Um `h` menor (eletroduto embutido, enterrado, muitos condutores juntos) significa pior dissipação e, portanto, **temperatura mais alta**. Os métodos e fatores são totalmente configuráveis em `config.ini` e aparecem como um seletor e um campo numérico na interface web.
+Um `h` menor (compartimento fechado, embutido na estrutura, muitos condutores no chicote) significa pior dissipação e, portanto, **temperatura mais alta**. Os métodos e fatores são totalmente configuráveis em `config.ini` e aparecem como um seletor e um campo numérico na interface web.
 
 Para conferir os números em uso a qualquer momento (via web), acesse `GET /api/config`, que devolve a configuração ativa em JSON.
 

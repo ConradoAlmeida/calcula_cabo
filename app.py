@@ -72,16 +72,6 @@ def _to_float(valor, padrao):
     return float(texto)
 
 
-def _to_float_opcional(valor):
-    """Converte para float ou retorna None quando vazio (diametro externo)."""
-    if valor is None:
-        return None
-    texto = str(valor).strip().replace(",", ".")
-    if texto == "":
-        return None
-    return float(texto)
-
-
 def _parse_entradas(dados):
     """Extrai e valida as entradas de um dict (form ou JSON)."""
     try:
@@ -94,7 +84,6 @@ def _parse_entradas(dados):
         pct_limite_termico = _to_float(
             dados.get("pct_limite_termico"), PADROES["pct_limite_termico"],
         )
-        diametro = _to_float_opcional(dados.get("diametro"))
     except (ValueError, TypeError):
         raise ValueError("Use apenas valores numéricos nos campos.")
 
@@ -123,7 +112,6 @@ def _parse_entradas(dados):
         "temp_max": temp_max,
         "temp_amb": temp_amb,
         "pct_limite_termico": pct_limite_termico,
-        "diametro": diametro,
         "metodo_instalacao": metodo,
         "n_condutores": n_condutores,
     }
@@ -155,7 +143,7 @@ def _calcular(entradas):
         entradas["queda_percentual"],
         temp_ambiente=entradas["temp_amb"],
         coef_conveccao=h_efetivo,
-        diametro_externo=entradas["diametro"],
+        diametro_externo=None,
         temp_maxima=entradas["temp_max"],
         pct_limite_termico=entradas["pct_limite_termico"],
     )
@@ -167,17 +155,15 @@ def _calcular(entradas):
         entradas["temp_max"],
         entradas["temp_amb"],
         h_efetivo,
-        entradas["diametro"],
+        None,
         comprimento_termico,
         entradas["pct_limite_termico"],
     )
 
     principal = {
-        "secao_calculada": f"{resultado['secao_calculada']:.2f}",
-        "bitola_vdrop": f"{resultado['bitola_vdrop']:.2f}",
-        "bitola_vdrop_awg": str(resultado["bitola_vdrop_awg"]),
-        "bitola_termica": f"{resultado['bitola_termica']:.2f}",
-        "bitola_termica_awg": str(resultado["bitola_termica_awg"]),
+        "secao_teorica_vdrop": f"{resultado['secao_teorica_vdrop']:.2f}",
+        "secao_teorica_termica": f"{resultado['secao_teorica_termica']:.2f}",
+        "secao_calculada": f"{resultado['secao_teorica_vdrop']:.2f}",
         "pct_limite_termico": f"{resultado['pct_limite_termico']:.0f}",
         "criterio_governante": resultado["criterio_governante"],
         "bitola_recomendada": f"{resultado['bitola_recomendada']:.2f}",
@@ -201,19 +187,19 @@ def _calcular(entradas):
             bitola, resultado["comprimento_total"], entradas["corrente"], entradas["tensao"],
             temp_ambiente=entradas["temp_amb"],
             h_conveccao=h_efetivo,
-            diametro_externo=entradas["diametro"],
+            diametro_externo=None,
             temp_limite=entradas["temp_max"],
         )
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
-            entradas["temp_amb"], entradas["diametro"], h_efetivo,
+            entradas["temp_amb"], None, h_efetivo,
             comprimento_termico,
             pct_limite_termico=entradas["pct_limite_termico"],
         )
         ok_queda = queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
         ok_termico, _ = bitola_atende_termico_limite(
             bitola, entradas["corrente"], entradas["temp_max"],
-            entradas["temp_amb"], h_efetivo, entradas["diametro"],
+            entradas["temp_amb"], h_efetivo, None,
             comprimento_termico, entradas["pct_limite_termico"],
         )
         alerta = termico["alerta_termico"]
@@ -357,7 +343,7 @@ def api_relatorio():
         entradas["tensao"], entradas["queda_percentual"],
         temp_ambiente=entradas["temp_amb"],
         coef_conveccao=h_efetivo,
-        diametro_externo=entradas["diametro"],
+        diametro_externo=None,
         temp_maxima=entradas["temp_max"],
         pct_limite_termico=entradas["pct_limite_termico"],
     )
@@ -382,19 +368,19 @@ def api_relatorio():
             bitola, resultado["comprimento_total"], entradas["corrente"], entradas["tensao"],
             temp_ambiente=entradas["temp_amb"],
             h_conveccao=h_efetivo,
-            diametro_externo=entradas["diametro"],
+            diametro_externo=None,
             temp_limite=entradas["temp_max"],
         )
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
-            entradas["temp_amb"], entradas["diametro"], h_efetivo,
+            entradas["temp_amb"], None, h_efetivo,
             comprimento_termico,
             pct_limite_termico=entradas["pct_limite_termico"],
         )
         ok_queda = queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
         ok_termico, _ = bitola_atende_termico_limite(
             bitola, entradas["corrente"], entradas["temp_max"],
-            entradas["temp_amb"], h_efetivo, entradas["diametro"],
+            entradas["temp_amb"], h_efetivo, None,
             comprimento_termico, entradas["pct_limite_termico"],
         )
         status_termico = "OK" if ok_queda and ok_termico else "REPROVADO"

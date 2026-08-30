@@ -105,11 +105,8 @@
     const p = data.principal;
     document.getElementById("hl-bitola").textContent = p.bitola_recomendada;
     document.getElementById("hl-awg").textContent = p.bitola_awg;
-    document.getElementById("hl-secao").textContent = p.secao_calculada;
-    document.getElementById("hl-secao-vdrop").textContent = p.bitola_vdrop;
-    document.getElementById("hl-secao-vdrop-awg").textContent = p.bitola_vdrop_awg;
-    document.getElementById("hl-secao-termica").textContent = p.bitola_termica;
-    document.getElementById("hl-secao-termica-awg").textContent = p.bitola_termica_awg;
+    document.getElementById("hl-secao-vdrop").textContent = p.secao_teorica_vdrop;
+    document.getElementById("hl-secao-termica").textContent = p.secao_teorica_termica;
     document.getElementById("hl-queda-ini-v").textContent = p.queda_inicial_volts;
     document.getElementById("hl-queda-ini-p").textContent = p.queda_inicial_percentual;
     document.getElementById("hl-queda-fin-v").textContent = p.queda_final_volts;
@@ -227,7 +224,6 @@
       const el = form.elements[name];
       if (el) el.value = defaults[name];
     });
-    form.elements["diametro"].value = "";
     if (metodoEl && metodoDefault !== null) metodoEl.value = metodoDefault;
     syncVdropPresetActive();
     if (btnMemorial) btnMemorial.hidden = true;

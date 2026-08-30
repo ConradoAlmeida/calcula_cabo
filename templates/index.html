@@ -82,24 +82,19 @@
               </div>
 
               <div class="mb-3">
-                <label for="diametro" class="form-label">Diâmetro externo <span class="text-body-secondary">(mm, opcional)</span></label>
-                <input type="number" class="form-control" id="diametro" name="diametro" step="any" min="0" placeholder="estimado automaticamente" />
-              </div>
-
-              <div class="mb-3">
                 <label for="metodo_instalacao" class="form-label">Método de instalação</label>
                 <select class="form-select" id="metodo_instalacao" name="metodo_instalacao">
                   {% for met in metodos %}
                   <option value="{{ met.id }}"{% if met.id == metodo_padrao %} selected{% endif %}>{{ met.rotulo }}</option>
                   {% endfor %}
                 </select>
-                <div class="form-text">Define quão bem o cabo dissipa calor (convecção).</div>
+                <div class="form-text">Como o cabo está instalado na aeronave — afeta a dissipação de calor (convecção).</div>
               </div>
 
               <div class="mb-4">
                 <label for="n_condutores" class="form-label">Condutores agrupados <span class="text-body-secondary">(lado a lado)</span></label>
                 <input type="number" class="form-control" id="n_condutores" name="n_condutores" min="1" step="1" value="1" />
-                <div class="form-text">Mais condutores juntos = pior dissipação = mais quente.</div>
+                <div class="form-text">Fios no mesmo chicote ou feixe — mais condutores juntos = pior dissipação.</div>
               </div>
 
               <div class="d-grid gap-2">
@@ -142,17 +137,13 @@
                 <span class="badge rounded-pill text-bg-info align-middle ms-2">AWG <span id="hl-awg">—</span></span>
               </div>
               <div class="row g-3 border-top pt-3">
-                <div class="col-6 col-md-4">
-                  <div class="text-body-secondary small">Seção teórica (vdrop)</div>
-                  <div class="fw-semibold"><span id="hl-secao">—</span> mm²</div>
+                <div class="col-6 col-md-6">
+                  <div class="text-body-secondary small">Cálculo p/ vdrop</div>
+                  <div class="fw-semibold"><span id="hl-secao-vdrop">—</span> mm²</div>
                 </div>
-                <div class="col-6 col-md-4">
-                  <div class="text-body-secondary small">Seção p/ vdrop</div>
-                  <div class="fw-semibold"><span id="hl-secao-vdrop">—</span> mm² <span class="text-body-secondary">(AWG <span id="hl-secao-vdrop-awg">—</span>)</span></div>
-                </div>
-                <div class="col-6 col-md-4">
-                  <div class="text-body-secondary small">Seção p/ T<sub>limite</sub></div>
-                  <div class="fw-semibold"><span id="hl-secao-termica">—</span> mm² <span class="text-body-secondary">(AWG <span id="hl-secao-termica-awg">—</span>)</span></div>
+                <div class="col-6 col-md-6">
+                  <div class="text-body-secondary small">Cálculo p/ T<sub>limite</sub></div>
+                  <div class="fw-semibold"><span id="hl-secao-termica">—</span> mm²</div>
                 </div>
                 <div class="col-6 col-md-3">
                   <div class="text-body-secondary small">Vdrop inicial</div>
