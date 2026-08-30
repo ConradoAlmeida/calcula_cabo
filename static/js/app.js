@@ -50,8 +50,13 @@
   }
 
   function pill(status) {
-    const ok = status === "OK" || status === "ADEQUADA";
-    return `<span class="badge rounded-pill ${ok ? "text-bg-success" : "text-bg-warning"}">${status}</span>`;
+    if (status === "OK" || status === "APROVADO") {
+      return `<span class="badge rounded-pill text-bg-success">${status}</span>`;
+    }
+    if (status === "REPROVADO") {
+      return `<span class="badge rounded-pill text-bg-danger">${status}</span>`;
+    }
+    return `<span class="badge rounded-pill text-bg-warning">${status}</span>`;
   }
 
   function termicaRowClass(alerta) {
@@ -65,14 +70,15 @@
     body.innerHTML = rows
       .map(
         (r) => `
-      <tr class="${r.recomendada ? "table-primary" : ""} ${termicaRowClass(r.alerta_termico)}">
+      <tr class="${r.recomendada ? "row-recomendada" : ""} ${termicaRowClass(r.alerta_termico)}">
         <td>${r.bitola}</td>
         <td>${r.awg}</td>
         <td>${r.queda_inicial_volts} V (${r.queda_inicial_percentual}%)</td>
         <td>${r.queda_final_volts} V (${r.queda_final_percentual}%)</td>
         <td>${r.potencia}</td>
         <td>${r.temp_regime}</td>
-        <td>${r.margem_termica}</td>
+        <td>${r.resistividade_inicial}</td>
+        <td>${r.resistividade_final}</td>
         <td>${r.tempo_minutos}</td>
         <td>${pill(r.status)}</td>
       </tr>`
@@ -109,7 +115,9 @@
 
     const badge = document.getElementById("status-badge");
     badge.textContent = p.status;
-    badge.className = "badge rounded-pill fs-6 " + (p.adequada ? "text-bg-success" : "text-bg-warning");
+    badge.className =
+      "badge rounded-pill fs-6 " +
+      (p.aprovado || p.status === "APROVADO" ? "text-bg-success" : "text-bg-danger");
 
     const alertaBox = document.getElementById("alerta-termico-box");
     if (alertaBox) {
@@ -117,7 +125,7 @@
         alertaBox.textContent = p.alerta_termico_msg;
         alertaBox.className =
           "alert py-2 px-3 mt-3 mb-0 small " +
-          (p.alerta_termico === "critico" ? "alert-danger" : "alert-warning");
+          (p.aprovado || p.status === "APROVADO" ? "alert-success" : "alert-danger");
         alertaBox.hidden = false;
       } else {
         alertaBox.hidden = true;
@@ -216,6 +224,7 @@
     });
     form.elements["diametro"].value = "";
     if (metodoEl && metodoDefault !== null) metodoEl.value = metodoDefault;
+    syncVdropPresetActive();
     if (btnMemorial) btnMemorial.hidden = true;
     sessionStorage.removeItem(MEMORIAL_KEY);
     clearError();
@@ -227,6 +236,29 @@
     const hidden = refWrap.hidden;
     refWrap.hidden = !hidden;
     btnToggleRef.textContent = hidden ? "Ocultar" : "Mostrar";
+  }
+
+  function syncVdropPresetActive() {
+    const quedaInput = form.elements["queda_percentual"];
+    if (!quedaInput) return;
+    const val = parseFloat(quedaInput.value);
+    document.querySelectorAll(".vdrop-preset").forEach((btn) => {
+      const preset = parseFloat(btn.dataset.quedaPreset);
+      btn.classList.toggle("active", !Number.isNaN(val) && val === preset);
+    });
+  }
+
+  document.querySelectorAll(".vdrop-preset").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const quedaInput = form.elements["queda_percentual"];
+      if (quedaInput) quedaInput.value = btn.dataset.quedaPreset;
+      syncVdropPresetActive();
+    });
+  });
+  const quedaInputEl = form.elements["queda_percentual"];
+  if (quedaInputEl) {
+    quedaInputEl.addEventListener("input", syncVdropPresetActive);
+    syncVdropPresetActive();
   }
 
   form.addEventListener("submit", calcular);

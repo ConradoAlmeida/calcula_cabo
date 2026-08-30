@@ -4,22 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Calculadora de Bitola de Cabo DC</title>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}" />
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/favicon-16.png') }}" />
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32.png') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
-  <header class="app-header">
-    <div class="container py-4">
+  <header class="app-header top-bar">
+    <div class="container py-3">
       <div class="d-flex align-items-center gap-3">
+        <img src="{{ url_for('static', filename='images/logo_dashboard.png') }}" alt="Logo" class="logo-img" />
         <div>
-          <h1 class="h4 mb-0 fw-bold">Calculadora de Bitola DC</h1>
-          <p class="mb-0 text-body-secondary small">Dimensionamento de cabos de cobre por queda de tensão</p>
+          <h1 class="h4 mb-0">Calculadora de Bitola <span class="app-accent">DC</span></h1>
+          <p class="mb-0 subtitle">Dimensionamento de cabos de cobre por queda de tensão e análise térmica</p>
         </div>
       </div>
     </div>
   </header>
 
-  <main class="container pb-5">
+  <main class="container pb-5 main-container">
     <div class="row g-4">
       <!-- Formulário -->
       <div class="col-lg-4">
@@ -46,7 +50,16 @@
 
               <div class="mb-3">
                 <label for="queda_percentual" class="form-label">Queda de tensão máxima <span class="text-body-secondary">(%)</span></label>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                  <button type="button" class="btn btn-sm vdrop-preset active" data-queda-preset="{{ queda_circuito.critico }}" title="{{ queda_circuito.rotulo_critico }}">
+                    {{ queda_circuito.critico }}% — Crítico
+                  </button>
+                  <button type="button" class="btn btn-sm vdrop-preset" data-queda-preset="{{ queda_circuito.comum }}" title="{{ queda_circuito.rotulo_comum }}">
+                    {{ queda_circuito.comum }}% — Comum
+                  </button>
+                </div>
                 <input type="number" class="form-control" id="queda_percentual" name="queda_percentual" step="any" min="0" value="{{ padroes.queda_percentual }}" />
+                <div class="form-text">{{ queda_circuito.rotulo_critico }}: {{ queda_circuito.critico }}%. {{ queda_circuito.rotulo_comum }}: {{ queda_circuito.comum }}% (IEC 60364-5-52 / UAS).</div>
               </div>
 
               <div class="section-divider"><span>Análise térmica</span></div>
@@ -160,7 +173,7 @@
                     <tr class="text-body-secondary">
                       <th>Bitola (mm²)</th><th>AWG</th>
                       <th>Vdrop inicial</th><th>Vdrop T. final</th>
-                      <th>P. Joule (W/m)</th><th>Temp. regime (°C)</th><th>Margem térmica (°C)</th><th>Tempo até Tmáx (min)</th><th>Status</th>
+                      <th>P. Joule (W/m)</th><th>Temp. regime (°C)</th><th>ρ inicial</th><th>ρ T. final</th><th>Tempo até Tmáx (min)</th><th>Status</th>
                     </tr>
                   </thead>
                   <tbody id="termica-body"></tbody>
@@ -168,6 +181,8 @@
               </div>
               <p class="text-body-secondary small mb-0 mt-2">
                 Vdrop inicial: cabo frio (T ambiente). Vdrop T. final: regime com ρ(T) e realimentação térmica.
+                ρ inicial / ρ T. final: resistividade em Ω·mm²/m na largada e em regime.
+                Análise térmica: trecho de um condutor (distância fonte→equipamento); P. Joule em W/m.
               </p>
             </div>
           </div>
@@ -220,9 +235,12 @@
     </div>
   </main>
 
-  <footer class="container pb-4">
-    <p class="text-body-secondary small text-center mb-0">
-      Dimensionamento por queda de tensão em condutor de cobre DC. A análise térmica é uma aproximação e não substitui normas (ex.: NBR 5410).
+  <footer class="container pb-4 app-footer">
+    <p class="text-body-secondary small text-center mb-2">
+      Dimensionamento por queda de tensão em condutor de cobre DC (sistemas embarcados / UAS). A análise térmica é uma aproximação de projeto.
+    </p>
+    <p class="text-body-secondary small text-center mb-0 app-footer-cert">
+      {{ rodape_certificacao }}
     </p>
   </footer>
 

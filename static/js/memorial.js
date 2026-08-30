@@ -50,12 +50,13 @@
     const rows = linhas
       .map(
         (r) => `
-      <tr class="${r.recomendada ? "table-primary" : ""}">
+      <tr class="${r.recomendada ? "row-recomendada" : ""}">
         <td>${escapeHtml(r.bitola)}</td>
         <td>${escapeHtml(r.awg)}</td>
         <td>${escapeHtml(r.vdrop_ini)}</td>
         <td>${escapeHtml(r.vdrop_fin)}</td>
         <td>${escapeHtml(r.temp_regime)}</td>
+        <td>${renderStatusBadge(r.status)}</td>
       </tr>`
       )
       .join("");
@@ -65,12 +66,30 @@
         <table class="table table-dark table-sm align-middle mb-0">
           <thead>
             <tr class="text-body-secondary">
-              <th>Bitola</th><th>AWG</th><th>Vdrop inicial</th><th>Vdrop T. final</th><th>T regime (°C)</th>
+              <th>Bitola</th><th>AWG</th><th>Vdrop inicial</th><th>Vdrop T. final</th><th>T regime (°C)</th><th>Status</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;
+  }
+
+  function renderStatusBadge(status) {
+    if (status === "APROVADO") {
+      return '<span class="badge rounded-pill text-bg-success">APROVADO</span>';
+    }
+    if (status === "REPROVADO") {
+      return '<span class="badge rounded-pill text-bg-danger">REPROVADO</span>';
+    }
+    return escapeHtml(status || "—");
+  }
+
+  function renderTextos(textos) {
+    return (
+      '<ul class="memorial-resumo mb-0">' +
+      textos.map((t) => "<li>" + escapeHtml(t) + "</li>").join("") +
+      "</ul>"
+    );
   }
 
   function renderDiagramas(diagramas) {
@@ -97,7 +116,9 @@
 
   function renderSecao(secao) {
     let body = "";
-    if (secao.itens) {
+    if (secao.textos) {
+      body = renderTextos(secao.textos);
+    } else if (secao.itens) {
       body = renderItens(secao.itens);
     } else if (secao.passos) {
       body = '<div class="memorial-passos">' + renderPassos(secao.passos) + "</div>";
@@ -106,7 +127,7 @@
     }
 
     return `
-      <section class="card shadow-sm memorial-secao" id="sec-${escapeHtml(secao.id)}">
+      <section class="card shadow-sm memorial-secao${secao.id === "resumo" ? " memorial-resumo-card" : ""}" id="sec-${escapeHtml(secao.id)}">
         <div class="card-body">
           <h2 class="h5 mb-3">${escapeHtml(secao.titulo)}</h2>
           ${body}
@@ -117,11 +138,13 @@
   async function renderMermaidDiagrams(nodes) {
     if (!nodes.length) return;
 
-    const preElements = nodes.map((n) => {
-      const el = document.getElementById(n.id);
-      if (el) el.textContent = n.source;
-      return el;
-    }).filter(Boolean);
+    const preElements = nodes
+      .map((n) => {
+        const el = document.getElementById(n.id);
+        if (el) el.textContent = n.source;
+        return el;
+      })
+      .filter(Boolean);
 
     if (!preElements.length) return;
 
@@ -132,19 +155,20 @@
       return;
     }
 
-    try {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: "dark",
-        securityLevel: "loose",
-        flowchart: { htmlLabels: true, curve: "basis" },
-      });
-      await mermaid.run({ nodes: preElements });
-    } catch (err) {
-      console.warn("Mermaid indisponível; exibindo texto do diagrama.", err);
-      preElements.forEach((el) => {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "dark",
+      securityLevel: "loose",
+      flowchart: { htmlLabels: true, curve: "basis" },
+    });
+
+    for (const el of preElements) {
+      try {
+        await mermaid.run({ nodes: [el] });
+      } catch (err) {
+        console.warn("Mermaid indisponível; exibindo texto do diagrama.", err);
         el.classList.add("memorial-mermaid-fallback");
-      });
+      }
     }
   }
 
@@ -174,6 +198,13 @@
     const container = document.getElementById("memorial-secoes");
     container.innerHTML = memorial.secoes.map(renderSecao).join("");
 
+    const footerCert = document.querySelector(".app-footer-cert");
+    if (footerCert && memorial.rodape_certificacao) {
+      footerCert.textContent = memorial.rodape_certificacao;
+    }
+
+    // Mermaid mede o DOM; precisa estar visível antes do render.
+    showContent();
     await renderMermaidDiagrams(diagramPack.nodes);
   }
 
@@ -252,7 +283,6 @@
 
     try {
       await renderMemorial(payload.memorial, payload.principal);
-      showContent();
     } catch (err) {
       console.error(err);
       showEmpty("Erro ao renderizar o memorial. Tente calcular novamente.");

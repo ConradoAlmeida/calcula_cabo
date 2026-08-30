@@ -2,17 +2,19 @@
 
 Calculadora de bitola ideal para cabos de energia elétrica **DC**.
 
-O programa dimensiona a seção do condutor de cobre a partir da queda de tensão máxima permitida, escolhe a bitola comercial imediatamente superior e compara o resultado com as bitolas vizinhas, incluindo uma análise térmica aproximada.
+O programa dimensiona a seção do condutor de cobre a partir da queda de tensão máxima permitida **e** da análise térmica em regime, escolhe a **menor** bitola comercial que atende ambos os critérios (status **APROVADO**) e compara o resultado com as bitolas vizinhas.
 
 ## O que o programa faz
 
 - Calcula a seção teórica do cabo (mm²) pela fórmula de queda de tensão.
-- Seleciona a bitola comercial mais próxima **para cima**.
+- Seleciona a **menor** bitola comercial com **Vdrop T. final** dentro do limite **e** critério térmico aprovado.
 - Converte a bitola recomendada para **AWG** / MCM.
-- Mostra queda de tensão real (V e %) com a bitola escolhida.
-- Compara a bitola anterior, a recomendada e a seguinte (queda e aquecimento).
+- Mostra queda de tensão inicial (cabo frio) e em regime (ρ(T_regime)).
+- Compara a bitola anterior, a recomendada e a seguinte (queda, ρ(T) e aquecimento).
+- Exibe status unificado **APROVADO** / **REPROVADO** (queda + térmica).
 - Opcionalmente gera um relatório completo em `.txt`.
 - Opcionalmente exibe uma tabela de referência de bitolas e capacidade de corrente.
+- Memorial de cálculo passo a passo na interface web (com diagramas).
 
 ## Requisitos
 
@@ -110,6 +112,7 @@ Todas as constantes físicas, as tabelas de conversão e os valores padrão de e
 | --- | --- |
 | `[fisica]` | Resistividade do cobre (Ω·mm²/m) a `T₀`, temperatura de referência `T₀` (°C), coeficiente de temperatura α₀ (1/°C), densidade (kg/m³), calor específico (J/(kg·°C)), coeficiente de convecção (W/(m²·°C)) e espessura de isolação (mm). |
 | `[padroes]` | Valores fixos de entrada usados quando um campo é deixado em branco. |
+| `[queda_circuito]` | Limites 3% (crítico) e 5% (comum) e rótulos para presets na interface. |
 | `[bitolas_comerciais]` | Lista de bitolas comerciais (mm²). |
 | `[conversao_awg]` | Tabela de conversão mm² → AWG/MCM. |
 | `[capacidade_corrente]` | Capacidade de corrente aproximada por bitola (tabela de referência). |
@@ -154,11 +157,26 @@ O dimensionamento por queda de tensão usa ρ(T) em regime quando os parâmetros
 
 O limite de queda percentual é verificado contra o **Vdrop T. final** (pior caso em operação).
 
+**Limites por tipo de circuito** (IEC 60364-5-52 Anexo G / prática embarcada UAS):
+
+| Tipo | Limite | Uso típico |
+| --- | --- | --- |
+| **Crítico** | **3%** | Controle, sensores, aviônica, FC |
+| **Comum** | **5%** | Propulsão, barramento de potência |
+
+Configurável em `config.ini` (`[queda_circuito]`). A interface web oferece presets **3% Crítico** e **5% Comum**.
+
+**Certificação (RBAC 100, STANAG):** documente cada trecho no formato **requisito → método → evidência**. O memorial e o relatório TXT incluem rodapé com essa orientação e servem como evidência de dimensionamento.
+
+**Seleção da bitola:** percorre as bitolas comerciais da menor para a maior e adota a primeira com **Vdrop T. final ≤ limite** e **alerta térmico ok** (T_regime abaixo de 70% de T_max). Se nenhuma atender, usa a maior da tabela (status REPROVADO).
+
 Comprimento total (ida e volta):
 
 ```text
 L = 2 × distância
 ```
+
+Na análise térmica, usa-se o trecho de **um condutor** (distância fonte → equipamento). A potência total dissipada escala com o comprimento, mas **W/m** e **T_regime** permanecem constantes para a mesma bitola e corrente — mais calor gerado, mais área lateral para dissipar.
 
 Seção teórica:
 
@@ -168,22 +186,36 @@ S = (ρ × L × I) / V_queda
 
 em que `V_queda` é a queda máxima permitida em volts (`% × tensão`).
 
-A bitola comercial escolhida é a primeira da tabela maior ou igual a `S`. Com essa bitola, o programa recalcula resistência, queda em volts e queda percentual.
+Com essa bitola, o programa recalcula resistência, queda em volts e queda percentual (inicial e em regime).
 
 ### Análise térmica
 
 Para a bitola recomendada e as vizinhas imediatas, o programa estima:
 
-- potência dissipada por efeito Joule (W/m), com ρ(T) em regime
+- potência dissipada por efeito Joule (W/m e W total no trecho), com ρ(T) em regime
 - temperatura de regime com realimentação térmica (ρ sobe com T)
-- margem térmica até a temperatura máxima da isolação
+- resistividade inicial (T ambiente) e em regime (ρ(T_regime))
 - tempo aproximado até atingir a temperatura máxima do cabo
 
-O modelo térmico é uma **aproximação** (convecção configurável por método de instalação). Não substitui tabelas de capacidade de corrente nem normas de instalação.
+**Status térmico:** `ok` (< 70% de T_max), `atencao` (70–90%), `critico` (≥ 90% ou runaway). Runaway (Kα ≥ 1, T = ∞) é sempre crítico.
+
+**Status da bitola:** **APROVADO** quando queda e térmica estão ok; **REPROVADO** caso contrário.
+
+O modelo térmico é uma **aproximação** (convecção configurável por método de instalação e agrupamento). Não substitui tabelas de capacidade de corrente nem normas de instalação.
 
 ### Memorial de cálculo (web)
 
-Após dimensionar na interface web, o botão **Memorial** abre a página `/memorial` com o detalhamento passo a passo: entradas, constantes, dimensionamento, quedas de tensão (inicial e em regime), equilíbrio térmico e tabela comparativa. Útil para conferência e validação dos resultados.
+Após dimensionar na interface web, o botão **Memorial** abre a página `/memorial` com:
+
+1. **Resumo executivo** — objetivo, comprimentos elétrico vs térmico, ρ(T) e dissipação
+2. Dados de entrada e constantes físicas
+3. Dimensionamento (queda + térmica) e bitola adotada
+4. Queda de tensão inicial e em regime
+5. Equilíbrio térmico da bitola recomendada
+6. Tabela comparativa com status APROVADO/REPROVADO
+7. Diagramas Mermaid do fluxo de cálculo
+
+Útil para conferência e validação dos resultados.
 
 ### Bitolas comerciais
 
@@ -221,10 +253,12 @@ calcula_cabo/
 ├── test_calculos.py             # testes de verificação dos cálculos e do config.ini
 ├── app.py                       # aplicação web Flask (reaproveita as funções de cálculo)
 ├── templates/
-│   └── index.html               # página da interface web
+│   ├── index.html               # página da interface web
+│   └── memorial.html            # memorial de cálculo passo a passo
 ├── static/
-│   ├── css/style.css            # ajustes de estilo sobre o Bootstrap
+│   ├── css/style.css            # tema escuro (identidade moya-weather-pro)
 │   ├── js/app.js                # lógica da interface (fetch da API + render)
+│   ├── js/memorial.js           # render do memorial e diagramas Mermaid
 │   └── vendor/bootstrap/        # Bootstrap 5.3 servido localmente
 ├── main.py                      # ponto de entrada gerado pelo uv
 ├── Dockerfile                   # imagem de container (gunicorn)
@@ -253,13 +287,13 @@ print(resultado["bitola_recomendada"], resultado["bitola_awg"])
 
 Para 7 m, 7 A, 12 V DC e queda máxima de 5%:
 
-| Seção calculada | Bitola recomendada | AWG | Queda real | Status |
+| Seção calculada | Bitola recomendada | AWG | Queda T. final | Status |
 | --- | --- | --- | --- | --- |
-| 2,86 mm² | 4,00 mm² | 12 | 0,43 V (3,57%) | ADEQUADA |
+| 2,86 mm² | 4,00 mm² | 12 | 0,43 V (3,57%) | APROVADO |
 
 ## Avisos
 
-- O dimensionamento considera apenas **queda de tensão** em condutor de cobre DC.
+- O dimensionamento considera **queda de tensão em regime** e **análise térmica aproximada** em condutor de cobre DC.
 - A capacidade de corrente da tabela de referência é aproximada (cerca de 30 °C) e serve só como consulta.
-- A análise térmica não modela agrupamento de circuitos, isolamento específico, enterro, dutos nem ventilação forçada.
+- A análise térmica não modela dutos ventilados, enterro com resistividade térmica do solo, nem agrupamento de circuitos distintos — apenas o fator de convecção configurável.
 - Para instalações reais, confira também as normas aplicáveis (por exemplo NBR 5410) e as tabelas do fabricante do cabo.

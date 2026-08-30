@@ -55,6 +55,21 @@ def test_dimensionamento_com_rho_t_pode_aumentar_bitola():
     assert r_t["queda_final_volts"] >= r_t["queda_inicial_volts"]
 
 
+def test_bitola_recomendada_exige_queda_e_termico():
+    """Menor bitola aprovada: queda dentro do limite e alerta térmico ok."""
+    h = m.coef_conveccao_efetivo("ar_livre", 1)
+    r = m.calcular_bitola_cb(
+        distancia=4, corrente=300, tensao=100, queda_percentual=3,
+        temp_ambiente=25, coef_conveccao=h, temp_maxima=200,
+    )
+    assert r["bitola_recomendada"] == 70.0
+    assert r["queda_final_percentual"] <= 3
+    termico = m.calcular_tempo_aquecimento(
+        r["bitola_recomendada"], 300, 200, 25, None, h, comprimento=4,
+    )
+    assert termico["alerta_termico"] == "ok"
+
+
 # --------------------------------------------------------------------------
 # Conversão mm² -> AWG (vem de config.ini)
 # --------------------------------------------------------------------------
@@ -114,6 +129,35 @@ def test_margem_termica_exemplo_usuario():
     assert 135 <= t["temp_regimen_value"] <= 145
     assert t["margem_termica_celsius"] == pytest.approx(200 - t["temp_regimen_value"], abs=0.1)
     assert t["alerta_termico"] == "atencao"
+
+
+def test_runaway_termico_classificado_critico():
+    """Runaway térmico (T regime infinita) deve ser alerta crítico, não ok."""
+    h = m.coef_conveccao_efetivo("ar_livre", 1)
+    t = m.calcular_tempo_aquecimento(25, 300, 200, 25, None, h)
+    assert t["temp_regimen_value"] == float("inf")
+    assert t["alerta_termico"] == "critico"
+
+
+def test_avaliar_aprovacao_reprova_runaway_mesmo_com_queda_ok():
+    from app import _avaliar_aprovacao
+
+    status, aprovado, alerta, msg = _avaliar_aprovacao(True, "critico")
+    assert status == "REPROVADO"
+    assert not aprovado
+    assert alerta == "critico"
+    assert "escolher outros valores" in msg
+    assert "runaway" in msg.lower()
+
+
+def test_avaliar_aprovacao_aprovado_queda_e_termico_ok():
+    from app import _avaliar_aprovacao
+
+    status, aprovado, alerta, msg = _avaliar_aprovacao(True, "ok")
+    assert status == "APROVADO"
+    assert aprovado
+    assert alerta == "ok"
+    assert msg is None
 
 
 def test_corrente_alta_atinge_tmax():
@@ -187,8 +231,52 @@ def test_metodos_instalacao_carregados():
 def test_fator_agrupamento():
     assert m.fator_agrupamento(1) == 1.0
     assert m.fator_agrupamento(3) < 1.0
+    assert m.fator_agrupamento(20) == 0.50
+    assert m.fator_agrupamento(25) == 0.45
     # acima do maior n definido, usa o último fator
     assert m.fator_agrupamento(999) == m.fator_agrupamento(max(m.CFG.agrupamento))
+
+
+def test_fator_agrupamento_interpolacao_entre_chaves():
+    """Entre chaves definidas, usa o fator da maior chave <= n (não volta a 1.0)."""
+    cfg = m.Config(
+        resistividade_cobre=0.0175,
+        temperatura_referencia=20.0,
+        coef_temp_cobre=0.00393,
+        densidade_cobre=8900.0,
+        calor_especifico_cobre=385.0,
+        coef_conveccao=10.0,
+        espessura_isolacao=2.0,
+        padroes=dict(m.CFG.padroes),
+        bitolas_comerciais=list(m.CFG.bitolas_comerciais),
+        conversao_awg=dict(m.CFG.conversao_awg),
+        capacidade_corrente=dict(m.CFG.capacidade_corrente),
+        instalacao=dict(m.CFG.instalacao),
+        instalacao_rotulos=dict(m.CFG.instalacao_rotulos),
+        instalacao_padrao=m.CFG.instalacao_padrao,
+        agrupamento={1: 1.0, 10: 0.5, 20: 0.5},
+    )
+    assert m.fator_agrupamento(15, cfg) == 0.5
+    assert m.fator_agrupamento(9, cfg) == 1.0
+
+
+def test_agrupamento_20_muito_pior_que_1():
+    """20 condutores devem reduzir h bem mais que 8 (faixa 10–20 = 50%)."""
+    h1 = m.coef_conveccao_efetivo("ar_livre", 1)
+    h20 = m.coef_conveccao_efetivo("ar_livre", 20)
+    assert h20 == pytest.approx(h1 * 0.50, rel=1e-6)
+    assert h20 < m.coef_conveccao_efetivo("ar_livre", 8)
+
+
+def test_cenario_baixa_corrente_agrupamento():
+    """Com carga térmica baixa, ΔT absoluto é pequeno mas n=20 aquece mais que n=1."""
+    h1 = m.coef_conveccao_efetivo("ar_livre", 1)
+    h20 = m.coef_conveccao_efetivo("ar_livre", 20)
+    t1 = m.calcular_tempo_aquecimento(2.5, 3, 200, 25, None, h1)
+    t20 = m.calcular_tempo_aquecimento(2.5, 3, 200, 25, None, h20)
+    assert 25.4 <= t1["temp_regimen_value"] <= 25.6
+    assert t20["temp_regimen_value"] > t1["temp_regimen_value"]
+    assert t20["temp_regimen_value"] - t1["temp_regimen_value"] > 0.4
 
 
 def test_coef_efetivo_pior_instalacao_menor_h():
@@ -233,10 +321,33 @@ def test_memorial_contem_secoes_principais():
     )
     memorial = m.gerar_memorial_calculo(entradas, resultado, h)
     ids = {s["id"] for s in memorial["secoes"]}
-    assert ids == {"entradas", "constantes", "dimensionamento", "queda", "termico", "comparativo"}
+    assert ids == {"resumo", "entradas", "constantes", "dimensionamento", "queda", "termico", "comparativo"}
     assert memorial["titulo"]
     assert len(memorial.get("diagramas", [])) >= 2
     assert "mermaid" in memorial["diagramas"][0]
+
+
+def test_comprimento_termico_escala_potencia_total():
+    """Potência total escala com o comprimento; W/m e T_regime permanecem constantes."""
+    h = m.coef_conveccao_efetivo("ar_livre", 1)
+    t4 = m.calcular_tempo_aquecimento(25, 100, 200, 25, None, h, comprimento=4)
+    t10 = m.calcular_tempo_aquecimento(25, 100, 200, 25, None, h, comprimento=10)
+    assert t4["temp_regimen_value"] == pytest.approx(t10["temp_regimen_value"])
+    assert t4["potencia_por_metro_watts"] == pytest.approx(t10["potencia_por_metro_watts"])
+    assert t10["potencia_gerada_watts"] == pytest.approx(t4["potencia_gerada_watts"] * 2.5, rel=0.01)
+
+
+def test_comprimento_condutor_metade_do_loop():
+    assert m.comprimento_condutor(8) == 4
+
+
+def test_queda_comparativa_usa_comprimento_condutor_na_termica():
+    h = m.coef_conveccao_efetivo("ar_livre", 1)
+    q = m.calcular_queda_comparativa(
+        25, 8, 100, 100, temp_ambiente=25, h_conveccao=h, temp_limite=200,
+    )
+    t = m.calcular_tempo_aquecimento(25, 100, 200, 25, None, h, comprimento=4)
+    assert q["temperatura_final"] == pytest.approx(t["temp_regimen_value"])
 
 
 def test_coef_conveccao_default_sem_argumento():

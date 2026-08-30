@@ -19,6 +19,7 @@ from calcular_bitola_cabo_dc import (
     coef_conveccao_efetivo,
     config_para_dict,
     gerar_memorial_calculo,
+    texto_rodape_certificacao,
     gerar_nome_relatorio_por_inputs,
     metodos_instalacao,
     mm2_para_awg,
@@ -31,6 +32,38 @@ app = Flask(__name__)
 # Toda a calibração (constantes, tabelas e valores padrão) vem de config.ini,
 # via o módulo de cálculo. Assim CLI e web usam exatamente os mesmos números.
 PADROES = CFG.padroes
+
+
+def _termico_aprovado(alerta):
+    return alerta == "ok"
+
+
+def _status_linha_termica(queda_ok, alerta_termico):
+    if queda_ok and _termico_aprovado(alerta_termico):
+        return "OK"
+    return "REPROVADO"
+
+
+def _avaliar_aprovacao(queda_ok, alerta_termico):
+    """Consolida queda + térmica em status único para o painel principal."""
+    termico_ok = _termico_aprovado(alerta_termico)
+    aprovado = queda_ok and termico_ok
+    if aprovado:
+        return "APROVADO", True, "ok", None
+
+    motivos = []
+    if not queda_ok:
+        motivos.append("queda de tensão em regime acima do limite")
+    if not termico_ok:
+        if alerta_termico == "critico":
+            motivos.append("temperatura de regime crítica ou instável (runaway)")
+        else:
+            motivos.append("temperatura de regime elevada")
+
+    msg = "REPROVADO — escolher outros valores"
+    if motivos:
+        msg += " (" + "; ".join(motivos) + ")"
+    return "REPROVADO", False, alerta_termico or "queda", msg
 
 
 def _to_float(valor, padrao):
@@ -111,6 +144,7 @@ def _tabela_referencia():
 def _calcular(entradas):
     """Executa o dimensionamento e a analise termica, retornando dados prontos p/ UI."""
     h_efetivo = coef_conveccao_efetivo(entradas["metodo_instalacao"], entradas["n_condutores"])
+    comprimento_termico = entradas["distancia"]
 
     resultado = calcular_bitola_cb(
         entradas["distancia"],
@@ -123,8 +157,7 @@ def _calcular(entradas):
         temp_maxima=entradas["temp_max"],
     )
 
-    adequada = resultado["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
-    status_queda = "ADEQUADA" if adequada else "ACIMA DO LIMITE"
+    adequada_queda = resultado["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
 
     principal = {
         "secao_calculada": f"{resultado['secao_calculada']:.2f}",
@@ -139,8 +172,6 @@ def _calcular(entradas):
         "queda_maxima_percentual": f"{resultado['queda_maxima_percentual']:.2f}",
         "comprimento_total": f"{resultado['comprimento_total']:.2f}",
         "temperatura_operacao": f"{resultado['temperatura_operacao']:.1f}",
-        "status": status_queda,
-        "adequada": adequada,
     }
 
     linhas_termicas = []
@@ -157,6 +188,7 @@ def _calcular(entradas):
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], entradas["diametro"], h_efetivo,
+            comprimento_termico,
         )
         ok = queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
         alerta = termico["alerta_termico"]
@@ -173,11 +205,13 @@ def _calcular(entradas):
             "queda_inicial_percentual": f"{queda['queda_inicial_percentual']:.2f}",
             "queda_final_volts": f"{queda['queda_final_volts']:.2f}",
             "queda_final_percentual": f"{queda['queda_final_percentual']:.2f}",
-            "potencia": f"{termico['potencia_gerada_watts']:.2f}",
+            "potencia": f"{termico['potencia_por_metro_watts']:.2f}",
             "temp_regime": str(termico["temp_regimen_celsius"]),
+            "resistividade_inicial": f"{queda['resistividade_inicial']:.4f}",
+            "resistividade_final": f"{queda['resistividade_final']:.4f}",
             "margem_termica": margem_str,
             "tempo_minutos": str(termico["tempo_minutos"]),
-            "status": "OK" if ok else "QUEDA ALTA",
+            "status": _status_linha_termica(ok, alerta),
             "alerta_termico": alerta,
             "recomendada": bitola == resultado["bitola_recomendada"],
         }
@@ -186,15 +220,14 @@ def _calcular(entradas):
         if bitola == resultado["bitola_recomendada"]:
             alerta_recomendada = alerta
 
-    if adequada and alerta_recomendada in ("atencao", "critico"):
-        principal["alerta_termico"] = alerta_recomendada
-        principal["alerta_termico_msg"] = (
-            "Queda de tensão adequada, mas a temperatura de regime está elevada. "
-            "Considere aumentar a bitola ou melhorar a instalação."
-        )
-    else:
-        principal["alerta_termico"] = alerta_recomendada or "ok"
-        principal["alerta_termico_msg"] = None
+    status, aprovado, alerta_principal, msg_principal = _avaliar_aprovacao(
+        adequada_queda, alerta_recomendada or "ok"
+    )
+    principal["status"] = status
+    principal["aprovado"] = aprovado
+    principal["adequada"] = aprovado
+    principal["alerta_termico"] = alerta_principal
+    principal["alerta_termico_msg"] = msg_principal
 
     instalacao = {
         "metodo": entradas["metodo_instalacao"],
@@ -222,14 +255,19 @@ def index():
     return render_template(
         "index.html",
         padroes=PADROES,
+        queda_circuito=CFG.queda_circuito,
         metodos=metodos_instalacao(),
         metodo_padrao=CFG.instalacao_padrao,
+        rodape_certificacao=texto_rodape_certificacao(),
     )
 
 
 @app.route("/memorial")
 def memorial_page():
-    return render_template("memorial.html")
+    return render_template(
+        "memorial.html",
+        rodape_certificacao=texto_rodape_certificacao(),
+    )
 
 
 @app.route("/api/memorial", methods=["POST"])
@@ -288,6 +326,7 @@ def api_relatorio():
     incluir_ref = str(dados.get("incluir_referencia", "")).lower() in ("1", "true", "s", "on", "sim")
 
     h_efetivo = coef_conveccao_efetivo(entradas["metodo_instalacao"], entradas["n_condutores"])
+    comprimento_termico = entradas["distancia"]
     resultado = calcular_bitola_cb(
         entradas["distancia"], entradas["corrente"],
         entradas["tensao"], entradas["queda_percentual"],
@@ -323,6 +362,7 @@ def api_relatorio():
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], entradas["diametro"], h_efetivo,
+            comprimento_termico,
         )
         status_termico = "OK" if queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"] else "QUEDA ALTA"
         margem = termico["margem_termica_celsius"]
@@ -334,7 +374,7 @@ def api_relatorio():
             f"{bitola:.2f}", f"{awg}",
             f"{queda['queda_inicial_volts']:.2f}", f"{queda['queda_inicial_percentual']:.2f}",
             f"{queda['queda_final_volts']:.2f}", f"{queda['queda_final_percentual']:.2f}",
-            f"{termico['potencia_gerada_watts']:.2f}", f"{termico['temp_regimen_celsius']}",
+            f"{termico['potencia_por_metro_watts']:.2f}", f"{termico['temp_regimen_celsius']}",
             margem_txt,
             f"{termico['tempo_minutos']}", status_termico,
         ])

@@ -1,21 +1,118 @@
-/* Complementos ao Bootstrap 5.3 (tema escuro). */
+/* Identidade visual alinhada ao moya-weather-pro (tema escuro). */
 
-/* Garante que o atributo `hidden` prevaleça sobre utilitários como
-   .d-flex/.spinner-border, que usam `display: ... !important`. */
+:root {
+  --bg-dark: #1a1d29;
+  --bg-card: #252936;
+  --bg-hover: #2e3241;
+  --text-primary: #ffffff;
+  --text-secondary: #a8adb8;
+  --accent-blue: #4a9eff;
+  --accent-green: #5cd6a8;
+  --accent-orange: #3ceef8;
+  --accent-red: #ff6b6b;
+  --border-color: #363a4a;
+
+  /* Bootstrap 5.3 — mapeamento para os tokens acima */
+  --bs-body-bg: var(--bg-dark);
+  --bs-body-color: var(--text-primary);
+  --bs-secondary-color: var(--text-secondary);
+  --bs-tertiary-color: var(--text-secondary);
+  --bs-border-color: var(--border-color);
+  --bs-card-bg: var(--bg-card);
+  --bs-card-border-color: var(--border-color);
+  --bs-primary: var(--accent-blue);
+  --bs-primary-rgb: 74, 158, 255;
+  --bs-success: var(--accent-green);
+  --bs-success-rgb: 92, 214, 168;
+  --bs-danger: var(--accent-red);
+  --bs-danger-rgb: 255, 107, 107;
+  --bs-info: var(--accent-orange);
+  --bs-info-rgb: 60, 238, 248;
+  --bs-warning: #ffaa4d;
+  --bs-warning-rgb: 255, 170, 77;
+  --bs-link-color: var(--accent-blue);
+  --bs-link-hover-color: #82bcff;
+  --bs-emphasis-color: var(--text-primary);
+  --bs-form-control-bg: var(--bg-card);
+  --bs-form-control-border-color: var(--border-color);
+  --bs-form-select-bg: var(--bg-card);
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--text-primary);
+  --bs-table-border-color: var(--border-color);
+  --bs-table-hover-bg: var(--bg-hover);
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.03);
+}
+
 [hidden] {
   display: none !important;
 }
 
-body {
-  min-height: 100vh;
-  background:
-    radial-gradient(900px 500px at 85% -10%, rgba(79, 140, 255, 0.16), transparent 60%),
-    radial-gradient(700px 420px at 0% 20%, rgba(124, 92, 255, 0.12), transparent 60%),
-    var(--bs-body-bg);
-  background-attachment: fixed;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
-/* Formulário fixo em telas grandes. */
+body {
+  min-height: 100vh;
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Cabeçalho */
+.app-header,
+.top-bar {
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.app-header h1,
+.top-bar h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.app-header .app-accent,
+.top-bar .app-accent {
+  color: var(--accent-orange);
+}
+
+.app-header .subtitle,
+.top-bar .subtitle {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.logo-img {
+  height: 36px;
+  width: auto;
+  flex-shrink: 0;
+}
+
+/* Container principal */
+.main-container {
+  padding-top: 1.5rem;
+}
+
+/* Cards */
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.card:hover {
+  border-color: rgba(74, 158, 255, 0.45);
+}
+
+.card.shadow-sm {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Formulário fixo em telas grandes */
 @media (min-width: 992px) {
   .form-card {
     position: sticky;
@@ -23,46 +120,162 @@ body {
   }
 }
 
-/* Separador com rótulo central. */
+/* Formulários */
+.form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-primary);
+}
+
+.form-control,
+.form-select {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--bg-card);
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 0.2rem rgba(74, 158, 255, 0.25);
+}
+
+.form-control::placeholder {
+  color: var(--text-secondary);
+}
+
+.form-text {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+/* Botões */
+.btn {
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background-color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: #3a8eef;
+  border-color: #3a8eef;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 158, 255, 0.3);
+}
+
+.btn-outline-secondary {
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+  background-color: transparent;
+}
+
+.btn-outline-secondary:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-outline-info {
+  color: var(--accent-orange);
+  border-color: var(--accent-orange);
+}
+
+.btn-outline-info:hover {
+  background-color: rgba(60, 238, 248, 0.12);
+  border-color: var(--accent-orange);
+  color: var(--accent-orange);
+}
+
+/* Separador com rótulo central */
 .section-divider {
   display: flex;
   align-items: center;
   text-align: center;
   margin: 1.25rem 0 1rem;
-  color: var(--bs-secondary-color);
+  color: var(--text-secondary);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+
 .section-divider::before,
 .section-divider::after {
   content: "";
   flex: 1;
   height: 1px;
-  background: var(--bs-border-color);
+  background: var(--border-color);
 }
+
 .section-divider span {
   padding: 0 0.75rem;
 }
 
-/* Card de destaque com leve gradiente. */
+/* Botões preset de queda (3% crítico / 5% comum) */
+.vdrop-preset {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--accent-blue);
+  color: var(--accent-blue);
+  background-color: transparent;
+  border-radius: 4px;
+}
+
+.vdrop-preset:hover,
+.vdrop-preset.active {
+  background-color: var(--accent-blue);
+  color: #fff;
+}
+
+.vdrop-preset.active {
+  font-weight: 600;
+}
+
+/* Footer certificação */
+.app-footer-cert {
+  max-width: 52rem;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.55;
+}
+
+/* Card de destaque (bitola recomendada) — destaque só na borda */
 .highlight-card {
-  background:
-    linear-gradient(135deg, rgba(79, 140, 255, 0.16), rgba(124, 92, 255, 0.08)),
-    var(--bs-card-bg);
-  border-color: rgba(120, 150, 255, 0.35);
+  background-color: var(--bg-card);
+  border: 2px solid var(--accent-blue);
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(74, 158, 255, 0.15);
+}
+
+.highlight-card:hover {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px rgba(74, 158, 255, 0.3);
 }
 
 .highlight-value {
   font-size: 2.75rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   line-height: 1.1;
+  color: var(--text-primary);
 }
+
 .highlight-value .hl-unit {
   font-size: 1.4rem;
-  font-weight: 700;
-  color: var(--bs-secondary-color);
+  font-weight: 400;
+  color: var(--text-secondary);
   margin-left: 0.4rem;
 }
 
@@ -72,16 +285,57 @@ body {
   }
 }
 
-/* Destaque térmico na tabela comparativa. */
+/* Tabelas */
+.table-dark {
+  --bs-table-bg: transparent;
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.03);
+  --bs-table-hover-bg: var(--bg-hover);
+  --bs-table-border-color: var(--border-color);
+}
+
+.table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+tr.row-recomendada td {
+  --bs-table-color: var(--text-primary);
+  --bs-table-bg: transparent;
+  --bs-table-hover-bg: var(--bg-hover);
+  color: var(--text-primary) !important;
+  background-color: transparent !important;
+  border-top: 2px solid var(--accent-blue);
+  border-bottom: 2px solid var(--accent-blue);
+}
+
+tr.row-recomendada td:first-child {
+  border-left: 2px solid var(--accent-blue);
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+tr.row-recomendada td:last-child {
+  border-right: 2px solid var(--accent-blue);
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+tr.row-recomendada:hover td {
+  background-color: var(--bg-hover) !important;
+}
+
+/* Destaque térmico na tabela comparativa */
 tr.termica-atencao td:nth-child(6),
 tr.termica-atencao td:nth-child(7) {
-  color: #ffc107;
+  color: var(--bs-warning);
   font-weight: 600;
 }
 
 tr.termica-critico td:nth-child(6),
 tr.termica-critico td:nth-child(7) {
-  color: #ff6b6b;
+  color: var(--accent-red);
   font-weight: 700;
 }
 
@@ -90,13 +344,81 @@ tr.termica-critico td:nth-child(4) {
   font-weight: 600;
 }
 
+/* Alertas */
+.alert {
+  border-radius: 8px;
+  border-width: 1px;
+}
+
+.alert-warning {
+  background-color: rgba(255, 170, 77, 0.1);
+  border-color: rgba(255, 170, 77, 0.35);
+  color: var(--text-primary);
+}
+
+.alert-success {
+  background-color: rgba(92, 214, 168, 0.1);
+  border-color: rgba(92, 214, 168, 0.35);
+}
+
+.alert-danger {
+  background-color: rgba(255, 107, 107, 0.1);
+  border-color: rgba(255, 107, 107, 0.35);
+}
+
+/* Badges */
+.badge.text-bg-info {
+  background-color: rgba(60, 238, 248, 0.15) !important;
+  color: var(--accent-orange) !important;
+  border: 1px solid rgba(60, 238, 248, 0.35);
+}
+
+.badge.text-bg-success {
+  background-color: rgba(92, 214, 168, 0.2) !important;
+  color: var(--accent-green) !important;
+}
+
+.badge.text-bg-danger {
+  background-color: rgba(255, 107, 107, 0.2) !important;
+  color: var(--accent-red) !important;
+}
+
+/* Empty state */
+#empty-state .display-5 {
+  color: var(--accent-blue);
+}
+
+/* Footer */
+footer p {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
 /* Memorial de cálculo */
+.memorial-resumo-card {
+  border-color: rgba(74, 158, 255, 0.35);
+  background: linear-gradient(135deg, rgba(74, 158, 255, 0.08), var(--bg-card));
+}
+
+.memorial-resumo {
+  padding-left: 1.25rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.memorial-resumo li {
+  line-height: 1.55;
+}
+
 .memorial-secao .card-body {
   padding: 1.25rem 1.5rem;
 }
 
 .memorial-dl dt {
   font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .memorial-passos {
@@ -116,8 +438,8 @@ tr.termica-critico td:nth-child(4) {
   width: 2rem;
   height: 2rem;
   border-radius: 50%;
-  background: rgba(79, 140, 255, 0.2);
-  color: #8cb4ff;
+  background: rgba(74, 158, 255, 0.15);
+  color: var(--accent-blue);
   font-weight: 700;
   font-size: 0.85rem;
   display: flex;
@@ -130,10 +452,17 @@ tr.termica-critico td:nth-child(4) {
   font-size: 0.9rem;
 }
 
+.memorial-formula code {
+  color: var(--accent-orange);
+  background: rgba(60, 238, 248, 0.08);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
 .memorial-calculo {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.85rem;
-  color: var(--bs-secondary-color);
+  color: var(--text-secondary);
   word-break: break-word;
 }
 
@@ -141,10 +470,10 @@ tr.termica-critico td:nth-child(4) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
   white-space: pre-wrap;
-  color: var(--bs-secondary-color);
+  color: var(--text-secondary);
   background: rgba(0, 0, 0, 0.2);
   padding: 0.75rem;
-  border-radius: 0.375rem;
+  border-radius: 8px;
 }
 
 .memorial-mermaid-wrap {
@@ -153,16 +482,23 @@ tr.termica-critico td:nth-child(4) {
 }
 
 .memorial-mermaid-wrap .mermaid {
-  display: flex;
-  justify-content: center;
-  min-width: min(100%, 520px);
+  display: block;
+  width: 100%;
   margin: 0;
   background: transparent;
   border: none;
+  overflow-x: auto;
+}
+
+.memorial-mermaid-wrap svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
 }
 
 .memorial-diagrama {
-  border-color: rgba(120, 150, 255, 0.25);
+  border-color: rgba(74, 158, 255, 0.25);
 }
 
 @media print {
@@ -170,10 +506,12 @@ tr.termica-critico td:nth-child(4) {
   header .btn {
     display: none !important;
   }
+
   body {
     background: white !important;
     color: black !important;
   }
+
   .card {
     border: 1px solid #ccc !important;
     break-inside: avoid;
