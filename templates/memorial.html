@@ -34,10 +34,12 @@
         <p class="text-body-secondary small mb-0" id="memorial-subtitulo"></p>
         <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-print">Imprimir</button>
       </div>
+      <div id="memorial-diagramas" class="d-flex flex-column gap-4 mb-4"></div>
       <div id="memorial-secoes" class="d-flex flex-column gap-4"></div>
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/memorial.js') }}"></script>
 </body>

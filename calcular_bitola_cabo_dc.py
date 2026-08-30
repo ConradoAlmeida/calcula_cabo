@@ -1125,8 +1125,67 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
         "tabela": comparativo,
     })
 
+    diagramas = [
+        {
+            "id": "fluxo_geral",
+            "titulo": "Visão geral do fluxo de cálculo",
+            "descricao": (
+                "As entradas alimentam o dimensionamento e a análise térmica. "
+                "A queda em regime (Vdrop T. final) usa ρ(T_regime) e define se a bitola atende o limite."
+            ),
+            "mermaid": (
+                "flowchart TD\n"
+                "    subgraph entradas [Entradas do usuario]\n"
+                "        IN1[Distancia corrente tensao]\n"
+                "        IN2[Temp ambiente e instalacao]\n"
+                "    end\n"
+                "    subgraph dimensionamento [Dimensionamento]\n"
+                "        D1[L = 2 x distancia]\n"
+                "        D2[Bitola com Vdrop T.final dentro do limite]\n"
+                "    end\n"
+                "    subgraph vdropFluxo [Queda de tensao]\n"
+                "        V1[Vdrop inicial: rho a T amb]\n"
+                "        V2[Vdrop T.final: rho a T regime]\n"
+                "    end\n"
+                "    subgraph termicoLoop [Realimentacao termica]\n"
+                "        T1[rho T] --> T2[P = I2 x R]\n"
+                "        T2 --> T3[T_regime = T_amb + P/hA]\n"
+                "        T3 --> T1\n"
+                "    end\n"
+                "    entradas --> dimensionamento\n"
+                "    dimensionamento --> vdropFluxo\n"
+                "    entradas --> termicoLoop\n"
+                "    termicoLoop --> vdropFluxo"
+            ),
+        },
+        {
+            "id": "realimentacao",
+            "titulo": "Realimentação térmica ρ(T)",
+            "descricao": (
+                "Comparacao conceitual: sem ρ(T) a temperatura é subestimada; "
+                "com realimentação, ρ sobe com T, aumenta P e converge em T_regime."
+            ),
+            "mermaid": (
+                "flowchart TD\n"
+                "    subgraph modeloFixo [Sem rho T na queda]\n"
+                "        A1[rho = rho0 fixo] --> B1[P = I2R]\n"
+                "        B1 --> C1[T_regime = T_amb + P/hA]\n"
+                "    end\n"
+                "    subgraph modeloRealim [Modelo adotado]\n"
+                "        A2[T de operacao] --> B2[rho T]\n"
+                "        B2 --> C2[P = I2 x rho T x L/S]\n"
+                "        C2 --> D2[T_novo = T_amb + P/hA]\n"
+                "        D2 --> E2{Convergiu?}\n"
+                "        E2 -->|nao| A2\n"
+                "        E2 -->|sim| F2[T_regime e Vdrop T.final]\n"
+                "    end"
+            ),
+        },
+    ]
+
     return {
         "titulo": "Memorial de Cálculo — Bitola de Cabo DC",
+        "diagramas": diagramas,
         "secoes": secoes,
     }
 

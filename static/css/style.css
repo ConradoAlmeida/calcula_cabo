@@ -137,6 +137,24 @@ tr.termica-critico td:nth-child(4) {
   word-break: break-word;
 }
 
+.memorial-mermaid-wrap {
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+
+.memorial-mermaid-wrap .mermaid {
+  display: flex;
+  justify-content: center;
+  min-width: min(100%, 520px);
+  margin: 0;
+  background: transparent;
+  border: none;
+}
+
+.memorial-diagrama {
+  border-color: rgba(120, 150, 255, 0.25);
+}
+
 @media print {
   .btn,
   header .btn {

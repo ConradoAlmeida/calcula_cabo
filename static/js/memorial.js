@@ -73,6 +73,25 @@
       </div>`;
   }
 
+  function renderDiagramas(diagramas) {
+    if (!diagramas || !diagramas.length) return "";
+
+    return diagramas
+      .map(
+        (d) => `
+      <section class="card shadow-sm memorial-secao memorial-diagrama" id="diag-${escapeHtml(d.id)}">
+        <div class="card-body">
+          <h2 class="h5 mb-2">${escapeHtml(d.titulo)}</h2>
+          ${d.descricao ? '<p class="text-body-secondary small mb-3">' + escapeHtml(d.descricao) + "</p>" : ""}
+          <div class="memorial-mermaid-wrap">
+            <pre class="mermaid">${escapeHtml(d.mermaid)}</pre>
+          </div>
+        </div>
+      </section>`
+      )
+      .join("");
+  }
+
   function renderSecao(secao) {
     let body = "";
     if (secao.itens) {
@@ -92,7 +111,7 @@
       </section>`;
   }
 
-  function renderMemorial(memorial, principal) {
+  async function renderMemorial(memorial, principal) {
     document.title = memorial.titulo + " — Bitola DC";
     const subtitulo = principal
       ? "Bitola recomendada: " +
@@ -105,11 +124,30 @@
       : "";
     document.getElementById("memorial-subtitulo").textContent = subtitulo;
 
+    const diagContainer = document.getElementById("memorial-diagramas");
+    if (memorial.diagramas && memorial.diagramas.length) {
+      diagContainer.innerHTML = renderDiagramas(memorial.diagramas);
+      diagContainer.hidden = false;
+    } else {
+      diagContainer.innerHTML = "";
+      diagContainer.hidden = true;
+    }
+
     const container = document.getElementById("memorial-secoes");
     container.innerHTML = memorial.secoes.map(renderSecao).join("");
+
+    if (typeof mermaid !== "undefined" && memorial.diagramas && memorial.diagramas.length) {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "dark",
+        securityLevel: "strict",
+        flowchart: { htmlLabels: true, curve: "basis" },
+      });
+      await mermaid.run({ querySelector: ".mermaid" });
+    }
   }
 
-  function loadMemorial() {
+  async function loadMemorial() {
     const empty = document.getElementById("memorial-empty");
     const content = document.getElementById("memorial-content");
     const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -125,7 +163,7 @@
       if (!payload.memorial) {
         throw new Error("sem memorial");
       }
-      renderMemorial(payload.memorial, payload.principal);
+      await renderMemorial(payload.memorial, payload.principal);
       empty.hidden = true;
       content.hidden = false;
     } catch (err) {

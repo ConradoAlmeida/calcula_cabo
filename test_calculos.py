@@ -235,6 +235,8 @@ def test_memorial_contem_secoes_principais():
     ids = {s["id"] for s in memorial["secoes"]}
     assert ids == {"entradas", "constantes", "dimensionamento", "queda", "termico", "comparativo"}
     assert memorial["titulo"]
+    assert len(memorial.get("diagramas", [])) >= 2
+    assert "mermaid" in memorial["diagramas"][0]
 
 
 def test_coef_conveccao_default_sem_argumento():
