@@ -55,19 +55,33 @@ def test_dimensionamento_com_rho_t_pode_aumentar_bitola():
     assert r_t["queda_final_volts"] >= r_t["queda_inicial_volts"]
 
 
-def test_bitola_recomendada_exige_queda_e_termico():
-    """Menor bitola aprovada: queda dentro do limite e alerta térmico ok."""
+def test_bitola_recomendada_max_entre_vdrop_e_termico():
+    """Recomendada = maior entre seção p/ vdrop e seção p/ T_limite."""
     h = m.coef_conveccao_efetivo("ar_livre", 1)
     r = m.calcular_bitola_cb(
         distancia=4, corrente=300, tensao=100, queda_percentual=3,
         temp_ambiente=25, coef_conveccao=h, temp_maxima=200,
+        pct_limite_termico=85,
+    )
+    assert r["bitola_recomendada"] == m.max_bitola_comercial(
+        r["bitola_vdrop"], r["bitola_termica"],
     )
     assert r["bitola_recomendada"] == 70.0
     assert r["queda_final_percentual"] <= 3
-    termico = m.calcular_tempo_aquecimento(
-        r["bitola_recomendada"], 300, 200, 25, None, h, comprimento=4,
+
+
+def test_cenario_320a_85pct_seleciona_95mm():
+    """320 A / 4 m / 5%: térmica governa com 85% de T_max (95 mm², não 120)."""
+    h = m.coef_conveccao_efetivo("eletroduto_aparente", 2)
+    r = m.calcular_bitola_cb(
+        distancia=4, corrente=320, tensao=100, queda_percentual=5,
+        temp_ambiente=25, coef_conveccao=h, temp_maxima=200,
+        pct_limite_termico=85,
     )
-    assert termico["alerta_termico"] == "ok"
+    assert r["bitola_vdrop"] < r["bitola_termica"]
+    assert r["bitola_termica"] == 95.0
+    assert r["bitola_recomendada"] == 95.0
+    assert r["criterio_governante"] == "termico"
 
 
 # --------------------------------------------------------------------------
@@ -124,8 +138,11 @@ def test_potencia_joule_correta():
 
 
 def test_margem_termica_exemplo_usuario():
-    """Cenário com T_regime ~140 °C e T_max 200 → margem ~60 °C."""
-    t = m.calcular_tempo_aquecimento(bitola=4.0, corrente=49, temp_maxima=200, temp_ambiente=25)
+    """Cenário com T_regime ~140 °C e T_max 200 → alerta acima de limite 65%."""
+    t = m.calcular_tempo_aquecimento(
+        bitola=4.0, corrente=49, temp_maxima=200, temp_ambiente=25,
+        pct_limite_termico=65,
+    )
     assert 135 <= t["temp_regimen_value"] <= 145
     assert t["margem_termica_celsius"] == pytest.approx(200 - t["temp_regimen_value"], abs=0.1)
     assert t["alerta_termico"] == "atencao"
@@ -142,7 +159,7 @@ def test_runaway_termico_classificado_critico():
 def test_avaliar_aprovacao_reprova_runaway_mesmo_com_queda_ok():
     from app import _avaliar_aprovacao
 
-    status, aprovado, alerta, msg = _avaliar_aprovacao(True, "critico")
+    status, aprovado, alerta, msg = _avaliar_aprovacao(True, False, "critico")
     assert status == "REPROVADO"
     assert not aprovado
     assert alerta == "critico"
@@ -153,7 +170,7 @@ def test_avaliar_aprovacao_reprova_runaway_mesmo_com_queda_ok():
 def test_avaliar_aprovacao_aprovado_queda_e_termico_ok():
     from app import _avaliar_aprovacao
 
-    status, aprovado, alerta, msg = _avaliar_aprovacao(True, "ok")
+    status, aprovado, alerta, msg = _avaliar_aprovacao(True, True, "ok")
     assert status == "APROVADO"
     assert aprovado
     assert alerta == "ok"

@@ -76,6 +76,12 @@
               </div>
 
               <div class="mb-3">
+                <label for="pct_limite_termico" class="form-label">Limite térmico <span class="text-body-secondary">(% de T<sub>max</sub>)</span></label>
+                <input type="number" class="form-control" id="pct_limite_termico" name="pct_limite_termico" step="any" min="1" max="100" value="{{ padroes.pct_limite_termico }}" />
+                <div class="form-text">T<sub>regime</sub> deve ficar ≤ este percentual de T<sub>max</sub> na seleção da seção térmica (padrão 85%).</div>
+              </div>
+
+              <div class="mb-3">
                 <label for="diametro" class="form-label">Diâmetro externo <span class="text-body-secondary">(mm, opcional)</span></label>
                 <input type="number" class="form-control" id="diametro" name="diametro" step="any" min="0" placeholder="estimado automaticamente" />
               </div>
@@ -136,9 +142,17 @@
                 <span class="badge rounded-pill text-bg-info align-middle ms-2">AWG <span id="hl-awg">—</span></span>
               </div>
               <div class="row g-3 border-top pt-3">
-                <div class="col-6 col-md-3">
-                  <div class="text-body-secondary small">Seção calculada</div>
+                <div class="col-6 col-md-4">
+                  <div class="text-body-secondary small">Seção teórica (vdrop)</div>
                   <div class="fw-semibold"><span id="hl-secao">—</span> mm²</div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="text-body-secondary small">Seção p/ vdrop</div>
+                  <div class="fw-semibold"><span id="hl-secao-vdrop">—</span> mm² <span class="text-body-secondary">(AWG <span id="hl-secao-vdrop-awg">—</span>)</span></div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="text-body-secondary small">Seção p/ T<sub>limite</sub></div>
+                  <div class="fw-semibold"><span id="hl-secao-termica">—</span> mm² <span class="text-body-secondary">(AWG <span id="hl-secao-termica-awg">—</span>)</span></div>
                 </div>
                 <div class="col-6 col-md-3">
                   <div class="text-body-secondary small">Vdrop inicial</div>
@@ -149,8 +163,12 @@
                   <div class="fw-semibold"><span id="hl-queda-fin-v">—</span> V (<span id="hl-queda-fin-p">—</span>%)</div>
                 </div>
                 <div class="col-6 col-md-3">
-                  <div class="text-body-secondary small">Limite</div>
+                  <div class="text-body-secondary small">Limite vdrop</div>
                   <div class="fw-semibold"><span id="hl-limite">—</span>%</div>
+                </div>
+                <div class="col-6 col-md-3">
+                  <div class="text-body-secondary small">Limite T (% T<sub>max</sub>)</div>
+                  <div class="fw-semibold"><span id="hl-limite-termico">—</span>%</div>
                 </div>
                 <div class="col-6 col-md-3">
                   <div class="text-body-secondary small">Comprimento total</div>
@@ -167,8 +185,9 @@
               <h2 class="h6 mb-1">Análise térmica comparativa</h2>
               <p class="text-body-secondary small mb-2">Bitola anterior, recomendada e seguinte na tabela comercial.</p>
               <p class="text-body-secondary small mb-2">
-                <strong>Critério de seleção:</strong> menor bitola comercial com Vdrop T. final ≤ limite (%) e alerta térmico OK
-                (T<sub>regime</sub> &lt; 70% de T<sub>max</sub>; atenção se ≥ 70%; crítico se ≥ 90% ou runaway).
+                <strong>Critério de seleção:</strong> seção p/ vdrop = menor bitola com Vdrop T. final ≤ limite (%);
+                seção p/ T<sub>limite</sub> = menor bitola com T<sub>regime</sub> ≤ limite térmico (% de T<sub>max</sub>);
+                recomendada = maior entre as duas.
               </p>
               <p class="small mb-3" id="instalacao-info" hidden></p>
               <div class="table-responsive">

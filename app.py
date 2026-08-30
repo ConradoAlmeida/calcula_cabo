@@ -13,6 +13,7 @@ from flask import Flask, jsonify, render_template, request, send_file
 
 from calcular_bitola_cabo_dc import (
     CFG,
+    bitola_atende_termico_limite,
     calcular_bitola_cb,
     calcular_queda_comparativa,
     calcular_tempo_aquecimento,
@@ -34,22 +35,17 @@ app = Flask(__name__)
 PADROES = CFG.padroes
 
 
-def _termico_aprovado(alerta):
-    return alerta == "ok"
-
-
-def _status_linha_termica(queda_ok, alerta_termico):
-    if queda_ok and _termico_aprovado(alerta_termico):
+def _status_linha_termica(queda_ok, termico_ok):
+    if queda_ok and termico_ok:
         return "OK"
     return "REPROVADO"
 
 
-def _avaliar_aprovacao(queda_ok, alerta_termico):
+def _avaliar_aprovacao(queda_ok, termico_ok, alerta_termico):
     """Consolida queda + térmica em status único para o painel principal."""
-    termico_ok = _termico_aprovado(alerta_termico)
     aprovado = queda_ok and termico_ok
     if aprovado:
-        return "APROVADO", True, "ok", None
+        return "APROVADO", True, alerta_termico or "ok", None
 
     motivos = []
     if not queda_ok:
@@ -58,7 +54,7 @@ def _avaliar_aprovacao(queda_ok, alerta_termico):
         if alerta_termico == "critico":
             motivos.append("temperatura de regime crítica ou instável (runaway)")
         else:
-            motivos.append("temperatura de regime elevada")
+            motivos.append("temperatura de regime acima do limite térmico (%)")
 
     msg = "REPROVADO — escolher outros valores"
     if motivos:
@@ -95,12 +91,17 @@ def _parse_entradas(dados):
         queda_percentual = _to_float(dados.get("queda_percentual"), PADROES["queda_percentual"])
         temp_max = _to_float(dados.get("temp_max"), PADROES["temp_max"])
         temp_amb = _to_float(dados.get("temp_amb"), PADROES["temp_amb"])
+        pct_limite_termico = _to_float(
+            dados.get("pct_limite_termico"), PADROES["pct_limite_termico"],
+        )
         diametro = _to_float_opcional(dados.get("diametro"))
     except (ValueError, TypeError):
         raise ValueError("Use apenas valores numéricos nos campos.")
 
     if distancia <= 0 or corrente <= 0 or tensao <= 0 or queda_percentual <= 0:
         raise ValueError("Distância, corrente, tensão e queda devem ser maiores que zero.")
+    if not (0 < pct_limite_termico <= 100):
+        raise ValueError("Limite térmico (%) deve estar entre 0 e 100.")
 
     # Método de instalação (validado contra os métodos de config.ini).
     metodo = str(dados.get("metodo_instalacao") or "").strip()
@@ -121,6 +122,7 @@ def _parse_entradas(dados):
         "queda_percentual": queda_percentual,
         "temp_max": temp_max,
         "temp_amb": temp_amb,
+        "pct_limite_termico": pct_limite_termico,
         "diametro": diametro,
         "metodo_instalacao": metodo,
         "n_condutores": n_condutores,
@@ -155,12 +157,29 @@ def _calcular(entradas):
         coef_conveccao=h_efetivo,
         diametro_externo=entradas["diametro"],
         temp_maxima=entradas["temp_max"],
+        pct_limite_termico=entradas["pct_limite_termico"],
     )
 
     adequada_queda = resultado["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
+    ok_rec, _ = bitola_atende_termico_limite(
+        resultado["bitola_recomendada"],
+        entradas["corrente"],
+        entradas["temp_max"],
+        entradas["temp_amb"],
+        h_efetivo,
+        entradas["diametro"],
+        comprimento_termico,
+        entradas["pct_limite_termico"],
+    )
 
     principal = {
         "secao_calculada": f"{resultado['secao_calculada']:.2f}",
+        "bitola_vdrop": f"{resultado['bitola_vdrop']:.2f}",
+        "bitola_vdrop_awg": str(resultado["bitola_vdrop_awg"]),
+        "bitola_termica": f"{resultado['bitola_termica']:.2f}",
+        "bitola_termica_awg": str(resultado["bitola_termica_awg"]),
+        "pct_limite_termico": f"{resultado['pct_limite_termico']:.0f}",
+        "criterio_governante": resultado["criterio_governante"],
         "bitola_recomendada": f"{resultado['bitola_recomendada']:.2f}",
         "bitola_awg": str(resultado["bitola_awg"]),
         "queda_inicial_volts": f"{resultado['queda_inicial_volts']:.2f}",
@@ -189,8 +208,14 @@ def _calcular(entradas):
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], entradas["diametro"], h_efetivo,
             comprimento_termico,
+            pct_limite_termico=entradas["pct_limite_termico"],
         )
-        ok = queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
+        ok_queda = queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
+        ok_termico, _ = bitola_atende_termico_limite(
+            bitola, entradas["corrente"], entradas["temp_max"],
+            entradas["temp_amb"], h_efetivo, entradas["diametro"],
+            comprimento_termico, entradas["pct_limite_termico"],
+        )
         alerta = termico["alerta_termico"]
         margem = termico["margem_termica_celsius"]
         if isinstance(margem, float) and margem == float("-inf"):
@@ -211,7 +236,7 @@ def _calcular(entradas):
             "resistividade_final": f"{queda['resistividade_final']:.4f}",
             "margem_termica": margem_str,
             "tempo_minutos": str(termico["tempo_minutos"]),
-            "status": _status_linha_termica(ok, alerta),
+            "status": _status_linha_termica(ok_queda, ok_termico),
             "alerta_termico": alerta,
             "recomendada": bitola == resultado["bitola_recomendada"],
         }
@@ -221,7 +246,7 @@ def _calcular(entradas):
             alerta_recomendada = alerta
 
     status, aprovado, alerta_principal, msg_principal = _avaliar_aprovacao(
-        adequada_queda, alerta_recomendada or "ok"
+        adequada_queda, ok_rec, alerta_recomendada or "ok"
     )
     principal["status"] = status
     principal["aprovado"] = aprovado
@@ -334,6 +359,7 @@ def api_relatorio():
         coef_conveccao=h_efetivo,
         diametro_externo=entradas["diametro"],
         temp_maxima=entradas["temp_max"],
+        pct_limite_termico=entradas["pct_limite_termico"],
     )
     adequada = resultado["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
     status_queda = "ADEQUADA" if adequada else "ACIMA DO LIMITE"
@@ -363,8 +389,15 @@ def api_relatorio():
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], entradas["diametro"], h_efetivo,
             comprimento_termico,
+            pct_limite_termico=entradas["pct_limite_termico"],
         )
-        status_termico = "OK" if queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"] else "QUEDA ALTA"
+        ok_queda = queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
+        ok_termico, _ = bitola_atende_termico_limite(
+            bitola, entradas["corrente"], entradas["temp_max"],
+            entradas["temp_amb"], h_efetivo, entradas["diametro"],
+            comprimento_termico, entradas["pct_limite_termico"],
+        )
+        status_termico = "OK" if ok_queda and ok_termico else "REPROVADO"
         margem = termico["margem_termica_celsius"]
         if isinstance(margem, float) and margem == float("-inf"):
             margem_txt = "—"

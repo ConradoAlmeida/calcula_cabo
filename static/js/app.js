@@ -106,11 +106,16 @@
     document.getElementById("hl-bitola").textContent = p.bitola_recomendada;
     document.getElementById("hl-awg").textContent = p.bitola_awg;
     document.getElementById("hl-secao").textContent = p.secao_calculada;
+    document.getElementById("hl-secao-vdrop").textContent = p.bitola_vdrop;
+    document.getElementById("hl-secao-vdrop-awg").textContent = p.bitola_vdrop_awg;
+    document.getElementById("hl-secao-termica").textContent = p.bitola_termica;
+    document.getElementById("hl-secao-termica-awg").textContent = p.bitola_termica_awg;
     document.getElementById("hl-queda-ini-v").textContent = p.queda_inicial_volts;
     document.getElementById("hl-queda-ini-p").textContent = p.queda_inicial_percentual;
     document.getElementById("hl-queda-fin-v").textContent = p.queda_final_volts;
     document.getElementById("hl-queda-fin-p").textContent = p.queda_final_percentual;
     document.getElementById("hl-limite").textContent = p.queda_maxima_percentual;
+    document.getElementById("hl-limite-termico").textContent = p.pct_limite_termico;
     document.getElementById("hl-comp").textContent = p.comprimento_total;
 
     const badge = document.getElementById("status-badge");
