@@ -181,6 +181,10 @@ Para a bitola recomendada e as vizinhas imediatas, o programa estima:
 
 O modelo térmico é uma **aproximação** (convecção configurável por método de instalação). Não substitui tabelas de capacidade de corrente nem normas de instalação.
 
+### Memorial de cálculo (web)
+
+Após dimensionar na interface web, o botão **Memorial** abre a página `/memorial` com o detalhamento passo a passo: entradas, constantes, dimensionamento, quedas de tensão (inicial e em regime), equilíbrio térmico e tabela comparativa. Útil para conferência e validação dos resultados.
+
 ### Bitolas comerciais
 
 O programa usa a tabela:
