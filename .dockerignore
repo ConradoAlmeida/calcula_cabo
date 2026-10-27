@@ -9,6 +9,9 @@ __pycache__/
 # Testes (não necessários no runtime)
 test_*.py
 
+# Segredos e ambiente local
+.env
+
 # Git e metadados do editor/agente
 .git/
 .gitignore
