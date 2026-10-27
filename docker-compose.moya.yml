@@ -2,4 +2,4 @@
 services:
   calcula-cabo:
     ports: !override
-      - "8030:8000"
+      - "127.0.0.1:8030:8000"
