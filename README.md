@@ -67,6 +67,22 @@ uv run gunicorn --bind 0.0.0.0:8000 --workers 2 app:app
 | `POST` | `/api/relatorio` | Gera e devolve o relatório `.txt` para download. |
 | `GET` | `/api/config` | Devolve a configuração/calibração ativa (constantes, tabelas e padrões) para conferência. |
 
+Todas as rotas exigem login no Credenciais, exceto `/health` e `/login`.
+A API (`/api/*`) responde `401` em JSON quando não há sessão.
+
+## Acesso pelo Credenciais
+
+O app é standalone, mas usa a senha única do moyaserver. Configure no `.env`:
+
+```text
+CREDENTIALS_URL=http://moya-credenciais:8080
+CREDENTIALS_API_TOKEN=o mesmo token do Credenciais
+FLASK_SECRET_KEY=uma chave estável
+```
+
+O container precisa estar na rede Docker `moya`.
+A pessoa só entra se tiver a concessão `calcula_cabo` no Credenciais.
+
 O Bootstrap é servido localmente (`static/vendor/bootstrap/`), então a interface funciona sem acesso à internet.
 
 ## Docker

@@ -11,6 +11,7 @@ import tempfile
 
 from flask import Flask, jsonify, render_template, request, send_file
 
+from acesso import proteger
 from calcular_bitola_cabo_dc import (
     CFG,
     bitola_atende_termico_limite,
@@ -29,6 +30,7 @@ from calcular_bitola_cabo_dc import (
 )
 
 app = Flask(__name__)
+proteger(app)
 
 # Toda a calibração (constantes, tabelas e valores padrão) vem de config.ini,
 # via o módulo de cálculo. Assim CLI e web usam exatamente os mesmos números.
