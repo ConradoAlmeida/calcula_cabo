@@ -9,6 +9,24 @@ APP_SLUG = "calcula_cabo"
 PUBLICOS = {"/health", "/login"}
 
 
+def consultar_sessao(username):
+    base = os.environ.get("CREDENTIALS_URL", "").rstrip("/")
+    token = os.environ.get("CREDENTIALS_API_TOKEN", "")
+    if not base or not token:
+        return {"ok": True, "autorizado": True}
+    try:
+        resposta = requests.post(
+            base + "/api/sessao",
+            json={"username": username, "app": APP_SLUG},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=5,
+        )
+        resposta.raise_for_status()
+        return resposta.json()
+    except (requests.RequestException, ValueError):
+        return {"ok": False, "autorizado": False}
+
+
 def consultar(username, password):
     base = os.environ.get("CREDENTIALS_URL", "").rstrip("/")
     token = os.environ.get("CREDENTIALS_API_TOKEN", "")
@@ -37,6 +55,12 @@ def proteger(server: Flask):
         if path in PUBLICOS or path.startswith(("/static/", "/assets/")):
             return None
         if session.get("usuario"):
+            dados = consultar_sessao(session["usuario"])
+            if not dados.get("ok") or not dados.get("autorizado"):
+                session.clear()
+                if path.startswith("/api/"):
+                    return jsonify({"erro": "login"}), 401
+                return redirect("/login")
             return None
         if path.startswith("/api/"):
             return jsonify({"erro": "login"}), 401

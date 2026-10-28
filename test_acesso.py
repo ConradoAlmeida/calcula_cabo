@@ -68,6 +68,18 @@ class PortaTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             self.assertNotIn("usuario", sess)
 
+    def test_sessao_revogada_derruba(self):
+        with self.client.session_transaction() as sess:
+            sess["usuario"] = "lucas"
+        with patch(
+            "acesso.consultar_sessao", return_value={"ok": True, "autorizado": False}
+        ):
+            resposta = self.client.get("/")
+        self.assertEqual(resposta.status_code, 302)
+        self.assertTrue(resposta.headers["Location"].endswith("/login"))
+        with self.client.session_transaction() as sess:
+            self.assertNotIn("usuario", sess)
+
 
 if __name__ == "__main__":
     unittest.main()
