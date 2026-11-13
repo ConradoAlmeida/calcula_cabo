@@ -31,7 +31,7 @@ Se já existir um relatório com a mesma combinação de entradas, o programa pe
 
 O TXT contém:
 
-1. dados de entrada
+1. dados de entrada (incluindo o tipo de condutor)
 2. resumo executivo
 3. tabela de dimensionamento
 4. análise térmica comparativa

@@ -42,6 +42,7 @@ resultado = calcular_bitola_cb(
     corrente=7,
     tensao=12,
     queda_percentual=5,
+    condutor="multifilamento_estanhado",  # opcional; padrão: solido_nu
 )
 print(resultado["bitola_recomendada"], resultado["bitola_awg"])
 ```

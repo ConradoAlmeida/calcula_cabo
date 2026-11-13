@@ -20,7 +20,10 @@ from calcular_bitola_cabo_dc import (
     calcular_tempo_aquecimento,
     coef_conveccao_efetivo,
     config_para_dict,
+    condutores_disponiveis,
     gerar_memorial_calculo,
+    resistividade_condutor,
+    rotulo_condutor,
     texto_rodape_certificacao,
     gerar_nome_relatorio_por_inputs,
     metodos_instalacao,
@@ -135,6 +138,7 @@ def _montar_sanidade(entradas, resultado, principal, linha_recomendada, instalac
         {"rotulo": "Cálculo p/ T_limite", "valor": f"{secao_termica:.2f} mm²"},
         {"rotulo": "Comprimento (ida+volta)", "valor": f"{resultado['comprimento_total']:.2f} m"},
         {"rotulo": "Instalação", "valor": instalacao["rotulo"]},
+        {"rotulo": "Condutor", "valor": rotulo_condutor(entradas["condutor"])},
         {"rotulo": "h efetivo", "valor": f"{instalacao['h_efetivo']} W/(m²·°C)"},
     ]
 
@@ -193,6 +197,11 @@ def _parse_entradas(dados):
     if metodo not in CFG.instalacao:
         metodo = CFG.instalacao_padrao
 
+    # Tipo de condutor (validado contra os tipos de config.ini).
+    condutor = str(dados.get("condutor") or "").strip()
+    if condutor not in CFG.condutores:
+        condutor = CFG.condutor_padrao
+
     # Número de condutores agrupados lado a lado.
     try:
         n_condutores = int(float(dados.get("n_condutores") or 1))
@@ -209,15 +218,18 @@ def _parse_entradas(dados):
         "temp_amb": temp_amb,
         "pct_limite_termico": pct_limite_termico,
         "metodo_instalacao": metodo,
+        "condutor": condutor,
         "n_condutores": n_condutores,
     }
 
 
-def _tabela_referencia():
+def _tabela_referencia(condutor=None):
     """Retorna as linhas estruturadas da tabela de referencia de bitolas."""
+    condutor = condutor or CFG.condutor_padrao
+    resistividade = resistividade_condutor(condutor)
     linhas = []
     for bitola, corrente_max in CFG.capacidade_corrente.items():
-        resistencia_km = (CFG.resistividade_cobre / bitola) * 1000
+        resistencia_km = (resistividade / bitola) * 1000
         linhas.append({
             "bitola": f"{bitola:.1f}",
             "awg": str(mm2_para_awg(bitola)),
@@ -242,6 +254,7 @@ def _calcular(entradas):
         diametro_externo=None,
         temp_maxima=entradas["temp_max"],
         pct_limite_termico=entradas["pct_limite_termico"],
+        condutor=entradas["condutor"],
     )
 
     adequada_queda = resultado["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
@@ -254,6 +267,7 @@ def _calcular(entradas):
         None,
         comprimento_termico,
         entradas["pct_limite_termico"],
+        condutor=entradas["condutor"],
     )
 
     principal = {
@@ -273,6 +287,10 @@ def _calcular(entradas):
         "queda_maxima_percentual": f"{resultado['queda_maxima_percentual']:.2f}",
         "comprimento_total": f"{resultado['comprimento_total']:.2f}",
         "temperatura_operacao": f"{resultado['temperatura_operacao']:.1f}",
+        "condutor": resultado["condutor"],
+        "condutor_rotulo": resultado["condutor_rotulo"],
+        "fator_condutor": f"{resultado['fator_condutor']:.2f}",
+        "resistividade_condutor": f"{resultado['resistividade_condutor_20c']:.4f}",
     }
 
     linhas_termicas = []
@@ -286,18 +304,21 @@ def _calcular(entradas):
             h_conveccao=h_efetivo,
             diametro_externo=None,
             temp_limite=entradas["temp_max"],
+            condutor=entradas["condutor"],
         )
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], None, h_efetivo,
             comprimento_termico,
             pct_limite_termico=entradas["pct_limite_termico"],
+            condutor=entradas["condutor"],
         )
         ok_queda = queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
         ok_termico, _ = bitola_atende_termico_limite(
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], h_efetivo, None,
             comprimento_termico, entradas["pct_limite_termico"],
+            condutor=entradas["condutor"],
         )
         alerta = termico["alerta_termico"]
         margem = termico["margem_termica_celsius"]
@@ -356,6 +377,13 @@ def _calcular(entradas):
         "h_efetivo": f"{h_efetivo:.2f}",
     }
 
+    condutor_info = {
+        "id": entradas["condutor"],
+        "rotulo": rotulo_condutor(entradas["condutor"]),
+        "fator": f"{resultado['fator_condutor']:.2f}",
+        "resistividade": f"{resultado['resistividade_condutor_20c']:.4f}",
+    }
+
     memorial = gerar_memorial_calculo(entradas, resultado, h_efetivo)
     sanidade = _montar_sanidade(
         entradas, resultado, principal, linha_recomendada, instalacao, adequada_queda, ok_rec,
@@ -365,8 +393,9 @@ def _calcular(entradas):
         "entradas": entradas,
         "principal": principal,
         "termicas": linhas_termicas,
-        "referencia": _tabela_referencia(),
+        "referencia": _tabela_referencia(entradas["condutor"]),
         "instalacao": instalacao,
+        "condutor": condutor_info,
         "memorial": memorial,
         "sanidade": sanidade,
     }
@@ -380,6 +409,8 @@ def index():
         queda_circuito=CFG.queda_circuito,
         metodos=metodos_instalacao(),
         metodo_padrao=CFG.instalacao_padrao,
+        condutores=condutores_disponiveis(),
+        condutor_padrao=CFG.condutor_padrao,
         rodape_certificacao=texto_rodape_certificacao(),
     )
 
@@ -457,6 +488,7 @@ def api_relatorio():
         diametro_externo=None,
         temp_maxima=entradas["temp_max"],
         pct_limite_termico=entradas["pct_limite_termico"],
+        condutor=entradas["condutor"],
     )
     adequada = resultado["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
     status_queda = "ADEQUADA" if adequada else "ACIMA DO LIMITE"
@@ -481,18 +513,21 @@ def api_relatorio():
             h_conveccao=h_efetivo,
             diametro_externo=None,
             temp_limite=entradas["temp_max"],
+            condutor=entradas["condutor"],
         )
         termico = calcular_tempo_aquecimento(
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], None, h_efetivo,
             comprimento_termico,
             pct_limite_termico=entradas["pct_limite_termico"],
+            condutor=entradas["condutor"],
         )
         ok_queda = queda["queda_final_percentual"] <= resultado["queda_maxima_percentual"]
         ok_termico, _ = bitola_atende_termico_limite(
             bitola, entradas["corrente"], entradas["temp_max"],
             entradas["temp_amb"], h_efetivo, None,
             comprimento_termico, entradas["pct_limite_termico"],
+            condutor=entradas["condutor"],
         )
         status_termico = "OK" if ok_queda and ok_termico else "REPROVADO"
         margem = termico["margem_termica_celsius"]

@@ -10,6 +10,7 @@ com memorial de cálculo.
 
 - Calcula a seção teórica do cabo (mm²) pela fórmula de queda de tensão.
 - Seleciona a **menor** bitola comercial com **Vdrop T. final** dentro do limite **e** critério térmico aprovado.
+- Permite escolher o condutor: **cobre nu** (padrão), **estanhado**, **multifilamento** e **multifilamento estanhado**.
 - Converte a bitola recomendada para **AWG** / MCM.
 - Usa uma tabela comercial de **0,13 mm² (AWG 26)** até 630 mm².
 - Mostra queda de tensão inicial (cabo frio) e em regime (ρ(T_regime)).
@@ -45,6 +46,7 @@ uv run gunicorn --bind 0.0.0.0:8000 --workers 2 app:app
 ## Avisos
 
 - O dimensionamento considera **queda de tensão em regime** e **análise térmica aproximada** em condutor de cobre DC.
+- Os fatores de resistência dos condutores (nu/estanhado, sólido/multifilamento) seguem a Tabela 8 do Capítulo 9 da NEC 2023 e podem ser recalibrados em `config.ini`.
 - A capacidade de corrente da tabela de referência é aproximada (cerca de 30 °C) e serve só como consulta.
 - A análise térmica não modela dutos ventilados, enterro com resistividade térmica do solo, nem agrupamento de circuitos distintos — apenas o fator de convecção configurável.
 - Para instalações reais, confira também as normas aplicáveis (por exemplo NBR 5410) e as tabelas do fabricante do cabo.

@@ -92,6 +92,17 @@
                     <input type="number" class="form-control form-control-sm" id="n_condutores" name="n_condutores" min="1" step="1" value="1" title="Condutores agrupados no mesmo chicote" />
                   </div>
                 </div>
+
+                <div class="row g-2 mt-2 mb-0">
+                  <div class="col-12">
+                    <label for="condutor" class="form-label">Condutor</label>
+                    <select class="form-select form-select-sm" id="condutor" name="condutor" title="Tipo de cobre: nu ou estanhado, sólido ou multifilamento">
+                      {% for cond in condutores %}
+                      <option value="{{ cond.id }}"{% if cond.id == condutor_padrao %} selected{% endif %}>{{ cond.rotulo }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
               </div>
 
               <div class="form-actions d-grid gap-2 mt-2">
@@ -177,6 +188,10 @@
                     Governante: <strong id="hl-criterio">—</strong>
                     <span class="text-body-secondary"> · menor comercial ≥ max(teóricas)</span>
                   </p>
+                  <p class="highlight-condutor small mb-2">
+                    Condutor: <strong id="hl-condutor">—</strong>
+                    <span class="text-body-secondary"> · ρ₀ <span id="hl-condutor-rho">—</span> Ω·mm²/m</span>
+                  </p>
                   <div class="highlight-bars">
                     <div class="hbar">
                       <div class="hbar-head">
@@ -253,7 +268,7 @@
                     <tbody id="referencia-body"></tbody>
                   </table>
                 </div>
-                <p class="text-body-secondary small mb-0">* Aproximado a ~30 °C.</p>
+                <p class="text-body-secondary small mb-0" id="ref-nota">* Corrente aproximada a ~30 °C.</p>
               </div>
               <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3 mt-3 pt-3 border-top border-secondary-subtle">
                 <div class="form-check mb-0">

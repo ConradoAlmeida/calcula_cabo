@@ -617,6 +617,11 @@ body {
   line-height: 1.35;
 }
 
+.highlight-condutor {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .highlight-bars {
   display: flex;
   flex-direction: column;

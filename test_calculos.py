@@ -31,6 +31,126 @@ def test_tabela_inclui_awg_26_para_cargas_baixas():
     assert r["bitola_awg"] == 26
 
 
+def test_condutores_padrao_disponiveis():
+    ids = [c["id"] for c in m.condutores_disponiveis()]
+    assert ids == [
+        "solido_nu",
+        "solido_estanhado",
+        "multifilamento_nu",
+        "multifilamento_estanhado",
+    ]
+    assert m.CFG.condutor_padrao == "solido_nu"
+    assert m.fator_condutor() == 1.0
+    assert m.resistividade_condutor() == pytest.approx(0.0175)
+    assert m.resistividade_condutor("solido_estanhado") == pytest.approx(0.0182)
+    assert m.resistividade_condutor("multifilamento_estanhado") == pytest.approx(0.01855)
+
+
+def test_condutor_estanhado_aumenta_resistencia_e_queda():
+    q_nu = m.calcular_queda_para_bitola(
+        bitola=4.0, comprimento_total=14.0, corrente=7, tensao=12,
+        condutor="solido_nu",
+    )
+    q_est = m.calcular_queda_para_bitola(
+        bitola=4.0, comprimento_total=14.0, corrente=7, tensao=12,
+        condutor="solido_estanhado",
+    )
+    assert q_est["resistencia_ohm"] == pytest.approx(q_nu["resistencia_ohm"] * 1.04)
+    assert q_est["queda_tensao_volts"] > q_nu["queda_tensao_volts"]
+
+
+def test_multifilamento_estanhado_tem_maior_resistencia():
+    r_nu = m.calcular_bitola_cb(
+        distancia=7, corrente=7, tensao=12, queda_percentual=5,
+        condutor="solido_nu",
+    )
+    r_est = m.calcular_bitola_cb(
+        distancia=7, corrente=7, tensao=12, queda_percentual=5,
+        condutor="multifilamento_estanhado",
+    )
+    assert r_est["resistividade_condutor_20c"] > r_nu["resistividade_condutor_20c"]
+    assert r_est["secao_teorica_vdrop"] > r_nu["secao_teorica_vdrop"]
+    assert r_est["condutor"] == "multifilamento_estanhado"
+    assert "multifilamento" in r_est["condutor_rotulo"].lower()
+
+
+def test_condutor_estanhado_pode_subir_a_bitola():
+    """No limite, 9,7 A / 7 m / 12 V / 5%: nu sólido fica em 4 mm²; estanhado exige 6 mm²."""
+    r_nu = m.calcular_bitola_cb(
+        distancia=7, corrente=9.7, tensao=12, queda_percentual=5,
+        condutor="solido_nu",
+    )
+    r_est = m.calcular_bitola_cb(
+        distancia=7, corrente=9.7, tensao=12, queda_percentual=5,
+        condutor="solido_estanhado",
+    )
+    assert r_nu["bitola_recomendada"] == 4.0
+    assert r_est["bitola_recomendada"] == 6.0
+
+
+def test_condutor_invalido_usa_padrao_na_api():
+    from app import _parse_entradas
+
+    entradas = _parse_entradas({"condutor": "nao_existe"})
+    assert entradas["condutor"] == m.CFG.condutor_padrao
+
+
+def test_payload_inclui_condutor_memorial_e_referencia():
+    from app import _calcular, _parse_entradas
+
+    entrada = {
+        "distancia": 7,
+        "corrente": 7,
+        "tensao": 12,
+        "queda_percentual": 5,
+        "temp_max": 200,
+        "temp_amb": 25,
+        "pct_limite_termico": 85,
+        "condutor": "multifilamento_estanhado",
+    }
+    payload = _calcular(_parse_entradas(entrada))
+    assert payload["condutor"]["id"] == "multifilamento_estanhado"
+    assert payload["principal"]["condutor"] == "multifilamento_estanhado"
+    assert "multifilamento" in str(payload["memorial"]).lower()
+
+    ref = {linha["bitola"]: linha["resistencia_km"] for linha in payload["referencia"]}
+    assert ref["4.0"] == "4.6375"
+
+
+def test_relatorio_txt_inclui_condutor(tmp_path):
+    entrada = {
+        "distancia": 7,
+        "corrente": 7,
+        "tensao": 12,
+        "queda_percentual": 5,
+        "temp_amb": 25,
+        "temp_max": 200,
+        "pct_limite_termico": 85,
+        "condutor": "solido_estanhado",
+    }
+    resultado = m.calcular_bitola_cb(
+        entrada["distancia"], entrada["corrente"], entrada["tensao"],
+        entrada["queda_percentual"], temp_ambiente=entrada["temp_amb"],
+        coef_conveccao=m.coef_conveccao_efetivo("exposto_ar", 1),
+        temp_maxima=entrada["temp_max"],
+        pct_limite_termico=entrada["pct_limite_termico"],
+        condutor=entrada["condutor"],
+    )
+    caminho = tmp_path / "relatorio.txt"
+    m.salvar_relatorio_txt(
+        dados_entrada=entrada,
+        resultado_principal=resultado,
+        linhas_principal=[["3.03", "4.00", "12", "0.46", "3.86", "0.47", "3.89", "5.00", "ADEQUADA"]],
+        linhas_termicas=[],
+        incluir_tabela_referencia=True,
+        caminho_arquivo=str(caminho),
+    )
+    texto = caminho.read_text(encoding="utf-8")
+    assert "Cobre estanhado - sólido (maciço)" in texto
+    assert "Resistencia DC a 20C" in texto
+    assert "solido_estanhado" not in texto
+
+
 def test_analise_termica_traz_ate_quatro_anteriores_e_duas_acima():
     assert m.obter_bitolas_analise_termica(4.0) == [
         0.75, 1.0, 1.5, 2.5, 4.0, 6.0, 10.0
@@ -264,6 +384,13 @@ def test_carregar_config_padrao_bate_com_embutido():
     assert cfg.coef_temp_cobre == 0.00393
     assert cfg.coef_conveccao == 10.0
     assert len(cfg.bitolas_comerciais) == 28
+    assert cfg.condutor_padrao == "solido_nu"
+    assert cfg.condutores == {
+        "solido_nu": 1.00,
+        "solido_estanhado": 1.04,
+        "multifilamento_nu": 1.02,
+        "multifilamento_estanhado": 1.06,
+    }
 
 
 def test_override_resistividade_muda_resultado(tmp_path):
@@ -297,6 +424,28 @@ def test_override_tabela_awg(tmp_path):
     try:
         m.CFG = m.carregar_config(str(ini))
         assert m.mm2_para_awg(4.0) == "TESTE"
+    finally:
+        m.CFG = cfg_original
+
+
+def test_override_condutores(tmp_path):
+    ini = tmp_path / "config.ini"
+    ini.write_text(textwrap.dedent("""
+        [condutores]
+        solido_nu = 1.00
+        teste = 1.50
+        padrao = teste
+
+        [condutores_rotulos]
+        teste = Condutor de teste
+    """), encoding="utf-8")
+
+    cfg_original = m.CFG
+    try:
+        m.CFG = m.carregar_config(str(ini))
+        assert m.CFG.condutor_padrao == "teste"
+        assert m.resistividade_condutor() == pytest.approx(0.02625)
+        assert m.rotulo_condutor() == "Condutor de teste"
     finally:
         m.CFG = cfg_original
 

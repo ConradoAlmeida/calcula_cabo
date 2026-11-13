@@ -20,6 +20,8 @@
   });
   const metodoEl = form.elements["metodo_instalacao"];
   const metodoDefault = metodoEl ? metodoEl.value : null;
+  const condutorEl = form.elements["condutor"];
+  const condutorDefault = condutorEl ? condutorEl.value : null;
   const MEMORIAL_KEY = "calc_memorial_payload";
 
   function formData() {
@@ -29,6 +31,8 @@
     });
     const metodo = form.elements["metodo_instalacao"];
     if (metodo) data["metodo_instalacao"] = metodo.value;
+    const condutor = form.elements["condutor"];
+    if (condutor) data["condutor"] = condutor.value;
     const nCond = form.elements["n_condutores"];
     if (nCond) data["n_condutores"] = nCond.value;
     return data;
@@ -196,6 +200,8 @@
     document.getElementById("hl-limite-termico").textContent = p.pct_limite_termico;
     document.getElementById("hl-comp").textContent = p.comprimento_total;
     document.getElementById("hl-t-regime").textContent = p.temperatura_operacao;
+    document.getElementById("hl-condutor").textContent = p.condutor_rotulo || "—";
+    document.getElementById("hl-condutor-rho").textContent = p.resistividade_condutor || "—";
 
     const quedaFin = parseFloat(p.queda_final_percentual);
     const quedaLim = parseFloat(p.queda_maxima_percentual);
@@ -243,6 +249,13 @@
         '<strong>' + i.rotulo + '</strong> · ' +
         i.n_condutores + ' cond. · h = ' + i.h_efetivo + ' W/(m²·°C)';
       info.hidden = false;
+    }
+
+    const refNota = document.getElementById("ref-nota");
+    if (refNota && data.condutor) {
+      refNota.textContent =
+        '* Corrente aproximada a ~30 °C. Resistência DC a 20 °C para ' +
+        data.condutor.rotulo + ' (fator ' + data.condutor.fator + ' sobre cobre nu sólido).';
     }
 
     renderTermica(data.termicas);
@@ -327,6 +340,7 @@
       if (el) el.value = defaults[name];
     });
     if (metodoEl && metodoDefault !== null) metodoEl.value = metodoDefault;
+    if (condutorEl && condutorDefault !== null) condutorEl.value = condutorDefault;
     syncVdropPresetActive();
     if (btnMemorial) btnMemorial.hidden = true;
     sessionStorage.removeItem(MEMORIAL_KEY);

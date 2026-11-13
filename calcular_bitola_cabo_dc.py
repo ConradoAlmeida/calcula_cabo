@@ -76,6 +76,25 @@ _CAPACIDADE_PADRAO = {
     185.0: 300, 240.0: 355,
 }
 
+# Tipo de condutor -> fator de resistividade sobre o cobre nu solido.
+# Referencia: NEC 2023, Chapter 9, Table 8 (Conductor Properties), resistencia
+# DC a 75 C. Os fatores refletem o encordamento e a cobertura de estanho:
+# solido nu 1,00; solido estanhado ~1,04; multifilamento nu ~1,02;
+# multifilamento estanhado ~1,06.
+_CONDUTORES_PADRAO = {
+    "solido_nu": 1.00,
+    "solido_estanhado": 1.04,
+    "multifilamento_nu": 1.02,
+    "multifilamento_estanhado": 1.06,
+}
+_CONDUTORES_ROTULOS_PADRAO = {
+    "solido_nu": "Cobre nu - solido (maci\u00e7o)",
+    "solido_estanhado": "Cobre estanhado - solido (maci\u00e7o)",
+    "multifilamento_nu": "Cobre nu - multifilamento",
+    "multifilamento_estanhado": "Cobre estanhado - multifilamento",
+}
+_CONDUTOR_PADRAO = "solido_nu"
+
 # Métodos de instalação -> coeficiente de convecção efetivo (W/(m²·°C)).
 _INSTALACAO_PADRAO = {
     "exposto_ar": 10.0,
@@ -120,6 +139,9 @@ class Config:
     instalacao: dict = field(default_factory=dict)
     instalacao_rotulos: dict = field(default_factory=dict)
     instalacao_padrao: str = _INSTALACAO_METODO_PADRAO
+    condutores: dict = field(default_factory=dict)
+    condutores_rotulos: dict = field(default_factory=dict)
+    condutor_padrao: str = _CONDUTOR_PADRAO
     agrupamento: dict = field(default_factory=dict)
     queda_circuito: dict = field(default_factory=dict)
     limites_uas: dict = field(default_factory=dict)
@@ -150,6 +172,9 @@ def carregar_config(caminho=None):
     instalacao = dict(_INSTALACAO_PADRAO)
     instalacao_rotulos = dict(_INSTALACAO_ROTULOS_PADRAO)
     instalacao_padrao = _INSTALACAO_METODO_PADRAO
+    condutores = dict(_CONDUTORES_PADRAO)
+    condutores_rotulos = dict(_CONDUTORES_ROTULOS_PADRAO)
+    condutor_padrao = _CONDUTOR_PADRAO
     agrupamento = dict(_AGRUPAMENTO_PADRAO)
     queda_circuito = dict(_QUEDA_CIRCUITO_PADRAO)
     limites_uas = dict(_LIMITES_UAS_PADRAO)
@@ -204,6 +229,24 @@ def carregar_config(caminho=None):
             if rotulos:
                 instalacao_rotulos = rotulos
 
+        if parser.has_section("condutores"):
+            fatores = {}
+            for chave, valor in parser.items("condutores"):
+                if chave == "padrao":
+                    condutor_padrao = valor.strip()
+                    continue
+                try:
+                    fatores[chave] = float(valor)
+                except ValueError:
+                    continue
+            if fatores:
+                condutores = fatores
+
+        if parser.has_section("condutores_rotulos"):
+            rotulos = dict(parser.items("condutores_rotulos"))
+            if rotulos:
+                condutores_rotulos = rotulos
+
         if parser.has_section("agrupamento"):
             itens = parser.items("agrupamento")
             if itens:
@@ -229,6 +272,10 @@ def carregar_config(caminho=None):
     if instalacao_padrao not in instalacao and instalacao:
         instalacao_padrao = next(iter(instalacao))
 
+    # O mesmo vale para o tipo de condutor padrao.
+    if condutor_padrao not in condutores and condutores:
+        condutor_padrao = next(iter(condutores))
+
     return Config(
         resistividade_cobre=fisica["resistividade_cobre"],
         temperatura_referencia=fisica["temperatura_referencia"],
@@ -244,6 +291,9 @@ def carregar_config(caminho=None):
         instalacao=instalacao,
         instalacao_rotulos=instalacao_rotulos,
         instalacao_padrao=instalacao_padrao,
+        condutores=condutores,
+        condutores_rotulos=condutores_rotulos,
+        condutor_padrao=condutor_padrao,
         agrupamento=agrupamento,
         queda_circuito=queda_circuito,
         limites_uas=limites_uas,
@@ -311,6 +361,41 @@ def coef_conveccao_efetivo(metodo=None, n_condutores=1, cfg=None):
     return base * fator_agrupamento(n_condutores, cfg)
 
 
+def condutores_disponiveis(cfg=None):
+    """Lista os tipos de condutor (id, rótulo e fator sobre o cobre nu sólido)."""
+    cfg = cfg or CFG
+    return [
+        {
+            "id": chave,
+            "rotulo": cfg.condutores_rotulos.get(
+                chave, chave.replace("_", " ").capitalize(),
+            ),
+            "fator": fator,
+        }
+        for chave, fator in cfg.condutores.items()
+    ]
+
+
+def fator_condutor(condutor=None, cfg=None):
+    """Fator de resistividade do condutor sobre o cobre nu sólido."""
+    cfg = cfg or CFG
+    condutor = condutor or cfg.condutor_padrao
+    return cfg.condutores.get(condutor, 1.0)
+
+
+def resistividade_condutor(condutor=None, cfg=None):
+    """Resistividade a 20 °C do tipo de condutor escolhido (Ohm·mm²/m)."""
+    cfg = cfg or CFG
+    return cfg.resistividade_cobre * fator_condutor(condutor, cfg)
+
+
+def rotulo_condutor(condutor=None, cfg=None):
+    """Rótulo exibido para o tipo de condutor."""
+    cfg = cfg or CFG
+    condutor = condutor or cfg.condutor_padrao
+    return cfg.condutores_rotulos.get(condutor, condutor)
+
+
 def config_para_dict(cfg=None):
     """Serializa a configuração atual (para inspeção/verificação dos números)."""
     cfg = cfg or CFG
@@ -330,6 +415,8 @@ def config_para_dict(cfg=None):
         "capacidade_corrente": {str(k): v for k, v in cfg.capacidade_corrente.items()},
         "instalacao": metodos_instalacao(cfg),
         "instalacao_padrao": cfg.instalacao_padrao,
+        "condutores": condutores_disponiveis(cfg),
+        "condutor_padrao": cfg.condutor_padrao,
         "agrupamento": {str(k): v for k, v in cfg.agrupamento.items()},
         "queda_circuito": dict(cfg.queda_circuito),
         "limites_uas": dict(cfg.limites_uas),
@@ -406,8 +493,8 @@ def obter_bitolas_analise_termica(bitola_recomendada, anteriores=4, seguintes=2)
     return tabela[inicio:fim]
 
 
-def resistividade_em_temperatura(temperatura_c, cfg=None):
-    """Resistividade do cobre em função da temperatura.
+def resistividade_em_temperatura(temperatura_c, cfg=None, condutor=None):
+    """Resistividade do condutor em função da temperatura.
 
     ρ(T) = ρ₀ · (1 + α₀ · (T − T₀))
 
@@ -415,7 +502,7 @@ def resistividade_em_temperatura(temperatura_c, cfg=None):
     """
     cfg = cfg or CFG
     delta = temperatura_c - cfg.temperatura_referencia
-    return cfg.resistividade_cobre * (1 + cfg.coef_temp_cobre * delta)
+    return resistividade_condutor(condutor, cfg) * (1 + cfg.coef_temp_cobre * delta)
 
 
 def calcular_equilibrio_termico(
@@ -427,6 +514,7 @@ def calcular_equilibrio_termico(
     comprimento=1.0,
     temp_limite=None,
     cfg=None,
+    condutor=None,
 ):
     """Resolve T de regime com realimentação ρ(T) → P → T.
 
@@ -435,16 +523,16 @@ def calcular_equilibrio_termico(
     nesse caso retorna T = ∞ e estima P com ρ(T_limite) quando informado.
     """
     cfg = cfg or CFG
+    rho0 = resistividade_condutor(condutor, cfg)
 
     if area_lateral <= 0 or h_conveccao <= 0 or bitola <= 0:
         return {
             "temp_regimen": float("inf"),
             "potencia_gerada": 0.0,
-            "resistividade_operacao": cfg.resistividade_cobre,
+            "resistividade_operacao": rho0,
             "iteracoes": 0,
         }
 
-    rho0 = cfg.resistividade_cobre
     alpha = cfg.coef_temp_cobre
     t0 = cfg.temperatura_referencia
 
@@ -455,7 +543,7 @@ def calcular_equilibrio_termico(
 
     if ka >= 1.0:
         temp_para_p = temp_limite if temp_limite is not None else temp_ambiente + 1000
-        rho = resistividade_em_temperatura(temp_para_p, cfg)
+        rho = resistividade_em_temperatura(temp_para_p, cfg, condutor)
         potencia = (corrente ** 2) * ((rho * comprimento) / bitola)
         return {
             "temp_regimen": float("inf"),
@@ -466,7 +554,7 @@ def calcular_equilibrio_termico(
 
     delta_t = (k_delta + k_delta * alpha * (temp_ambiente - t0)) / (1 - ka)
     temp_regimen = temp_ambiente + delta_t
-    rho = resistividade_em_temperatura(temp_regimen, cfg)
+    rho = resistividade_em_temperatura(temp_regimen, cfg, condutor)
     potencia = (corrente ** 2) * ((rho * comprimento) / bitola)
 
     return {
@@ -512,6 +600,7 @@ def calcular_secao_teorica_termica(
     distancia,
     pct_limite_termico,
     diametro_externo=None,
+    condutor=None,
 ):
     """Seção mínima (mm²) com T_regime <= pct_limite % de T_max (busca contínua)."""
     if temp_maxima <= 0:
@@ -523,6 +612,7 @@ def calcular_secao_teorica_termica(
         ok, _ = bitola_atende_termico_limite(
             mid, corrente, temp_maxima, temp_ambiente,
             coef_conveccao, diametro_externo, distancia, pct_limite_termico,
+            condutor=condutor,
         )
         if ok:
             hi = mid
@@ -579,6 +669,7 @@ def bitola_comercial_atende_ambos(
     diametro_externo,
     temp_maxima,
     pct_limite_termico,
+    condutor=None,
 ):
     """Verifica queda em regime e limite térmico na bitola comercial."""
     ok_v, queda = bitola_atende_queda(
@@ -587,12 +678,14 @@ def bitola_comercial_atende_ambos(
         coef_conveccao=coef_conveccao,
         diametro_externo=diametro_externo,
         temp_maxima=temp_maxima,
+        condutor=condutor,
     )
     if not ok_v:
         return False, queda
     ok_t, _ = bitola_atende_termico_limite(
         bitola, corrente, temp_maxima, temp_ambiente,
         coef_conveccao, diametro_externo, distancia, pct_limite_termico,
+        condutor=condutor,
     )
     return ok_t, queda
 
@@ -608,6 +701,7 @@ def bitola_atende_queda(
     coef_conveccao=None,
     diametro_externo=None,
     temp_maxima=None,
+    condutor=None,
 ):
     """Verifica apenas queda de tensão em regime (ou a frio, sem ρ(T))."""
     usa_rho_t = temp_ambiente is not None and coef_conveccao is not None
@@ -618,11 +712,13 @@ def bitola_atende_queda(
             h_conveccao=coef_conveccao,
             diametro_externo=diametro_externo,
             temp_limite=temp_maxima,
+            condutor=condutor,
         )
         return queda["queda_final_volts"] <= queda_tensao_max, queda
 
     queda = calcular_queda_para_bitola(
         bitola, comprimento_total, corrente, tensao,
+        condutor=condutor,
     )
     return queda["queda_tensao_volts"] <= queda_tensao_max, queda
 
@@ -636,12 +732,14 @@ def bitola_atende_termico_limite(
     diametro_externo,
     distancia,
     pct_limite_termico,
+    condutor=None,
 ):
     """Verifica se T_regime <= pct_limite (% de T_max) e não há runaway."""
     termico = calcular_tempo_aquecimento(
         bitola, corrente, temp_maxima, temp_ambiente,
         diametro_externo, coef_conveccao, distancia,
         pct_limite_termico=pct_limite_termico,
+        condutor=condutor,
     )
     t_reg = termico["temp_regimen_value"]
     if t_reg == float("inf"):
@@ -680,13 +778,14 @@ def temperatura_regime_para_bitola(
     temp_limite=None,
     comprimento=1.0,
     cfg=None,
+    condutor=None,
 ):
     """Retorna o equilíbrio térmico (T_regime, P, ρ) para uma bitola."""
     cfg = cfg or CFG
     _, area_lateral = parametros_dissipacao(bitola, diametro_externo, comprimento, cfg=cfg)
     return calcular_equilibrio_termico(
         bitola, corrente, temp_ambiente, h_conveccao, area_lateral,
-        comprimento, temp_limite, cfg,
+        comprimento, temp_limite, cfg, condutor=condutor,
     )
 
 
@@ -700,6 +799,7 @@ def _temperatura_para_queda(
     temp_limite,
     comprimento,
     cfg,
+    condutor=None,
 ):
     """Resolve a temperatura usada em ρ(T) para o cálculo de queda."""
     if temperatura_operacao is not None:
@@ -709,6 +809,7 @@ def _temperatura_para_queda(
         equilibrio = temperatura_regime_para_bitola(
             bitola, corrente, temp_ambiente, h_conveccao,
             diametro_externo, temp_limite, comprimento, cfg,
+            condutor=condutor,
         )
         temp = equilibrio["temp_regimen"]
         if temp == float("inf"):
@@ -732,6 +833,7 @@ def calcular_queda_para_bitola(
     temp_limite=None,
     comprimento_termico=None,
     cfg=None,
+    condutor=None,
 ):
     """Calcula queda de tensão para uma bitola específica.
 
@@ -749,8 +851,9 @@ def calcular_queda_para_bitola(
     temp = _temperatura_para_queda(
         temperatura_operacao, bitola, corrente, temp_ambiente,
         h_conveccao, diametro_externo, temp_limite, comprimento_termico, cfg,
+        condutor=condutor,
     )
-    resistividade = resistividade_em_temperatura(temp, cfg)
+    resistividade = resistividade_em_temperatura(temp, cfg, condutor)
     resistencia = (resistividade * comprimento_total) / bitola
     queda_tensao = corrente * resistencia
     queda_percentual = (queda_tensao / tensao) * 100
@@ -774,6 +877,7 @@ def calcular_queda_comparativa(
     diametro_externo=None,
     temp_limite=None,
     cfg=None,
+    condutor=None,
 ):
     """Calcula queda de tensão na largada (T ambiente) e em regime (T final).
 
@@ -786,6 +890,7 @@ def calcular_queda_comparativa(
     queda_inicial = calcular_queda_para_bitola(
         bitola, comprimento_total, corrente, tensao,
         temperatura_operacao=temp_inicial, cfg=cfg,
+        condutor=condutor,
     )
 
     if temp_ambiente is not None and h_conveccao is not None:
@@ -796,6 +901,7 @@ def calcular_queda_comparativa(
             diametro_externo=diametro_externo,
             temp_limite=temp_limite,
             cfg=cfg,
+            condutor=condutor,
         )
     else:
         queda_final = queda_inicial
@@ -838,6 +944,7 @@ def bitola_atende_criterios(
     diametro_externo=None,
     temp_maxima=None,
     pct_limite_termico=85.0,
+    condutor=None,
 ):
     """
     Verifica queda de tensão e limite térmico (T_regime <= pct de T_max).
@@ -851,6 +958,7 @@ def bitola_atende_criterios(
         coef_conveccao=coef_conveccao,
         diametro_externo=diametro_externo,
         temp_maxima=temp_maxima,
+        condutor=condutor,
     )
     if not ok_queda:
         return False, queda
@@ -860,6 +968,7 @@ def bitola_atende_criterios(
         ok_termico, _ = bitola_atende_termico_limite(
             bitola, corrente, temp_maxima, temp_ambiente,
             coef_conveccao, diametro_externo, distancia, pct_limite_termico,
+            condutor=condutor,
         )
         if not ok_termico:
             return False, queda
@@ -876,6 +985,7 @@ def calcular_bitola_cb(
     diametro_externo=None,
     temp_maxima=None,
     pct_limite_termico=None,
+    condutor=None,
 ):
     """
     Dimensiona a bitola comercial a partir de duas seções teóricas (mm²).
@@ -892,16 +1002,18 @@ def calcular_bitola_cb(
     usa_rho_t = temp_ambiente is not None and coef_conveccao is not None
 
     if usa_rho_t:
-        resistividade_estimada = resistividade_em_temperatura(temp_ambiente)
+        resistividade_estimada = resistividade_em_temperatura(
+            temp_ambiente, condutor=condutor,
+        )
     else:
-        resistividade_estimada = CFG.resistividade_cobre
+        resistividade_estimada = resistividade_condutor(condutor)
 
     secao_teorica_vdrop = (resistividade_estimada * comprimento_total * corrente) / queda_tensao_max
 
     if usa_rho_t and temp_maxima is not None:
         secao_teorica_termica = calcular_secao_teorica_termica(
             corrente, temp_maxima, temp_ambiente, coef_conveccao, distancia,
-            pct_limite_termico, diametro_externo,
+            pct_limite_termico, diametro_externo, condutor=condutor,
         )
     else:
         secao_teorica_termica = secao_teorica_vdrop
@@ -927,6 +1039,7 @@ def calcular_bitola_cb(
                 diametro_externo=diametro_externo,
                 temp_maxima=temp_maxima,
                 pct_limite_termico=pct_limite_termico,
+                condutor=condutor,
             )
             if ok:
                 bitola_ideal = bitola
@@ -936,6 +1049,7 @@ def calcular_bitola_cb(
         bitola_ideal = menor_bitola_comercial_para_secao(secao_governante)
         queda_escolhida = calcular_queda_para_bitola(
             bitola_ideal, comprimento_total, corrente, tensao,
+            condutor=condutor,
         )
 
     if bitola_ideal is None:
@@ -947,10 +1061,12 @@ def calcular_bitola_cb(
                 h_conveccao=coef_conveccao,
                 diametro_externo=diametro_externo,
                 temp_limite=temp_maxima,
+                condutor=condutor,
             )
         else:
             queda_escolhida = calcular_queda_para_bitola(
                 bitola_ideal, comprimento_total, corrente, tensao,
+                condutor=condutor,
             )
 
     if usa_rho_t:
@@ -968,7 +1084,9 @@ def calcular_bitola_cb(
 
     if usa_rho_t:
         temperatura_operacao = queda_escolhida["temperatura_final"]
-        resistividade_operacao = resistividade_em_temperatura(temperatura_operacao)
+        resistividade_operacao = resistividade_em_temperatura(
+            temperatura_operacao, condutor=condutor,
+        )
     else:
         temperatura_operacao = queda_escolhida["temperatura_operacao"]
         resistividade_operacao = queda_escolhida["resistividade_operacao"]
@@ -989,6 +1107,10 @@ def calcular_bitola_cb(
         "criterio_governante": criterio_governante,
         "bitola_recomendada": bitola_ideal,
         "bitola_awg": mm2_para_awg(bitola_ideal),
+        "condutor": condutor or CFG.condutor_padrao,
+        "condutor_rotulo": rotulo_condutor(condutor),
+        "fator_condutor": fator_condutor(condutor),
+        "resistividade_condutor_20c": round(resistividade_condutor(condutor), 6),
         "comprimento_total": comprimento_total,
         "resistencia_ohm": round(resistencia_ohm, 4),
         "queda_tensao_volts": round(queda_final_volts, 2),
@@ -1016,6 +1138,7 @@ def calcular_tempo_aquecimento(
     coef_conveccao=None,
     comprimento=1.0,
     pct_limite_termico=None,
+    condutor=None,
 ):
     """
     Calcula o tempo para o cabo alcançar a temperatura máxima suportada.
@@ -1034,6 +1157,7 @@ def calcular_tempo_aquecimento(
             instalação e o agrupamento de condutores.
         comprimento (float): Comprimento físico do condutor analisado (m).
             Em circuito DC ida+volta, use a distância fonte→equipamento (um condutor).
+        condutor (str): Tipo de condutor (id de [condutores]).
     
     Returns:
         dict: Dicionário com resultados do cálculo térmico
@@ -1070,7 +1194,7 @@ def calcular_tempo_aquecimento(
     # Equilíbrio térmico com ρ(T): quanto mais quente, maior ρ e maior P dissipada.
     equilibrio = calcular_equilibrio_termico(
         bitola, corrente, temp_ambiente, h_conveccao, area_lateral,
-        comprimento, temp_maxima, CFG,
+        comprimento, temp_maxima, CFG, condutor=condutor,
     )
     temp_regimen = equilibrio["temp_regimen"]
     potencia_gerada = equilibrio["potencia_gerada"]
@@ -1159,14 +1283,15 @@ def calcular_tempo_aquecimento(
     }
 
 
-def tabela_bitolas():
+def tabela_bitolas(condutor=None):
     """Exibe uma tabela de referência de bitolas comerciais e suas capacidades"""
-    print(obter_tabela_bitolas_texto())
+    print(obter_tabela_bitolas_texto(condutor=condutor))
 
 
-def obter_tabela_bitolas_texto(linhas=None):
+def obter_tabela_bitolas_texto(linhas=None, condutor=None):
     """Retorna em texto a tabela de referência de bitolas."""
-    resistividade = CFG.resistividade_cobre
+    condutor = condutor or CFG.condutor_padrao
+    resistividade = resistividade_condutor(condutor)
 
     if linhas is None:
         linhas = []
@@ -1186,7 +1311,12 @@ def obter_tabela_bitolas_texto(linhas=None):
         linhas
     )
 
-    return f"{tabela}\n* Valores aproximados para temperatura de 30C\n"
+    return (
+        f"{tabela}\n"
+        f"* Corrente aproximada para temperatura de 30C. "
+        f"Resistencia DC a 20C para {rotulo_condutor(condutor)} "
+        f"(fator {fator_condutor(condutor):.2f} sobre cobre nu solido).\n"
+    )
 
 
 def _fmt(valor, casas=2):
@@ -1210,6 +1340,8 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     metodo_id = entradas.get("metodo_instalacao", cfg.instalacao_padrao)
     metodo_rotulo = cfg.instalacao_rotulos.get(metodo_id, metodo_id)
     n_cond = entradas.get("n_condutores", 1)
+    condutor_id = entradas.get("condutor", cfg.condutor_padrao)
+    condutor_rotulo = cfg.condutores_rotulos.get(condutor_id, condutor_id)
 
     comprimento = resultado["comprimento_total"]
     comprimento_termico = distancia
@@ -1217,7 +1349,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     bitola = resultado["bitola_recomendada"]
     usa_rho_t = resultado.get("usa_rho_temperatura", True)
 
-    rho0 = cfg.resistividade_cobre
+    rho0 = resistividade_condutor(condutor_id, cfg)
     t0 = cfg.temperatura_referencia
     alpha = cfg.coef_temp_cobre
 
@@ -1240,6 +1372,11 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
                 "(Vdrop T. final) e pelo limite térmico (T_regime ≤ % configurável de T_max). "
                 "Calculam-se duas seções teóricas (mm²); adota-se a menor bitola comercial "
                 "≥ maior entre elas, validada em regime."
+            ),
+            (
+                f"Condutor: {condutor_rotulo} "
+                f"(ρ₀ = {_fmt(rho0, 4)} Ω·mm²/m; fator {_fmt(fator_condutor(condutor_id, cfg), 2)} "
+                "sobre o cobre nu sólido — NEC 2023, Cap. 9, Tabela 8)."
             ),
             (
                 f"Limites de queda por tipo de circuito: {critico_pct:g}% — "
@@ -1277,6 +1414,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             {"rotulo": "Temperatura ambiente", "valor": f"{_fmt(temp_amb)} °C"},
             {"rotulo": "Temperatura máxima do cabo", "valor": f"{_fmt(temp_max)} °C"},
             {"rotulo": "Limite térmico (T_regime)", "valor": f"{_fmt(pct_limite)} % de T_max"},
+            {"rotulo": "Tipo de condutor", "valor": condutor_rotulo},
             {"rotulo": "Método de instalação", "valor": metodo_rotulo},
             {"rotulo": "Condutores agrupados", "valor": str(n_cond)},
             {"rotulo": "Coeficiente de convecção efetivo", "valor": f"{_fmt(h_efetivo)} W/(m²·°C)"},
@@ -1287,7 +1425,8 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
         "id": "constantes",
         "titulo": "2. Constantes físicas (config.ini)",
         "itens": [
-            {"rotulo": "ρ₀ — resistividade do cobre", "valor": f"{_fmt(rho0, 4)} Ω·mm²/m"},
+            {"rotulo": "ρ₀ — resistividade do condutor", "valor": f"{_fmt(rho0, 4)} Ω·mm²/m"},
+            {"rotulo": "Fator do condutor", "valor": f"{_fmt(fator_condutor(condutor_id, cfg), 2)} × cobre nu sólido"},
             {"rotulo": "T₀ — temperatura de referência", "valor": f"{_fmt(t0)} °C"},
             {"rotulo": "α₀ — coeficiente de temperatura", "valor": f"{_fmt(alpha, 5)} /°C"},
             {"rotulo": "Fórmula ρ(T)", "valor": "ρ(T) = ρ₀ · (1 + α₀ · (T − T₀))"},
@@ -1312,7 +1451,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     ]
 
     if usa_rho_t:
-        rho_est = resistividade_em_temperatura(temp_amb, cfg)
+        rho_est = resistividade_em_temperatura(temp_amb, cfg, condutor_id)
         secao_est = (rho_est * comprimento * corrente) / v_queda_max
         passos_dim.extend([
             {
@@ -1362,9 +1501,14 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
         bitola, comprimento, corrente, tensao,
         temp_ambiente=temp_amb, h_conveccao=h_efetivo,
         diametro_externo=None, temp_limite=temp_max, cfg=cfg,
+        condutor=condutor_id,
     )
-    rho_ini = resistividade_em_temperatura(queda["temperatura_inicial"], cfg)
-    rho_fin = resistividade_em_temperatura(queda["temperatura_final"], cfg)
+    rho_ini = resistividade_em_temperatura(
+        queda["temperatura_inicial"], cfg, condutor_id,
+    )
+    rho_fin = resistividade_em_temperatura(
+        queda["temperatura_final"], cfg, condutor_id,
+    )
     r_ini = queda["resistencia_ohm_inicial"]
     r_fin = queda["resistencia_ohm_final"]
 
@@ -1401,11 +1545,11 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     )
     equilibrio = temperatura_regime_para_bitola(
         bitola, corrente, temp_amb, h_efetivo, None, temp_max,
-        comprimento_termico, cfg,
+        comprimento_termico, cfg, condutor=condutor_id,
     )
     termico = calcular_tempo_aquecimento(
         bitola, corrente, temp_max, temp_amb, None, h_efetivo,
-        comprimento_termico,
+        comprimento_termico, condutor=condutor_id,
     )
 
     rho_ref = (rho0 * comprimento_termico) / bitola
@@ -1489,15 +1633,17 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             b, comprimento, corrente, tensao,
             temp_ambiente=temp_amb, h_conveccao=h_efetivo,
             diametro_externo=None, temp_limite=temp_max, cfg=cfg,
+            condutor=condutor_id,
         )
         t = calcular_tempo_aquecimento(
             b, corrente, temp_max, temp_amb, None, h_efetivo,
             comprimento_termico, pct_limite_termico=pct_limite,
+            condutor=condutor_id,
         )
         ok_queda = q["queda_final_percentual"] <= queda_pct
         ok_termico, _ = bitola_atende_termico_limite(
             b, corrente, temp_max, temp_amb, h_efetivo, None,
-            comprimento_termico, pct_limite,
+            comprimento_termico, pct_limite, condutor=condutor_id,
         )
         if ok_queda and ok_termico:
             status = "APROVADO"
@@ -1603,6 +1749,8 @@ def salvar_relatorio_txt(
     metodo_rotulo = CFG.instalacao_rotulos.get(metodo_id, metodo_id)
     n_condutores = dados_entrada.get('n_condutores', 1)
     h_efetivo = coef_conveccao_efetivo(metodo_id, n_condutores)
+    condutor = dados_entrada.get('condutor', CFG.condutor_padrao)
+    condutor_rotulo = rotulo_condutor(condutor)
 
     secao_entrada = [
         "DADOS DE ENTRADA",
@@ -1613,6 +1761,7 @@ def salvar_relatorio_txt(
         f"- Temperatura ambiente (C): {dados_entrada['temp_amb']}",
         f"- Temperatura maxima do cabo (C): {dados_entrada['temp_max']}",
         f"- Limite termico T_regime (% de T_max): {dados_entrada.get('pct_limite_termico', CFG.padroes.get('pct_limite_termico', 85))}",
+        f"- Tipo de condutor: {condutor_rotulo}",
         f"- Metodo de instalacao: {metodo_rotulo}",
         f"- Condutores agrupados: {n_condutores}",
         f"- Coef. conveccao efetivo (W/m2.C): {h_efetivo:.2f}",
@@ -1649,6 +1798,7 @@ def salvar_relatorio_txt(
     secao_resumo = [
         "RESUMO EXECUTIVO",
         f"- Bitola recomendada: {resultado_principal['bitola_recomendada']:.2f} mm2 (AWG {resultado_principal['bitola_awg']})",
+        f"- Tipo de condutor: {condutor_rotulo}",
         f"- Calculo p/ vdrop: {resultado_principal['secao_teorica_vdrop']:.2f} mm2",
         f"- Calculo p/ T_limite ({resultado_principal.get('pct_limite_termico', 85):g}% de T_max): "
         f"{resultado_principal['secao_teorica_termica']:.2f} mm2",
@@ -1673,7 +1823,7 @@ def salvar_relatorio_txt(
 
     if incluir_tabela_referencia:
         conteudo.append("")
-        conteudo.append(obter_tabela_bitolas_texto())
+        conteudo.append(obter_tabela_bitolas_texto(condutor=condutor))
 
     conteudo.append("")
     conteudo.append("=" * 90)
@@ -1717,6 +1867,7 @@ def gerar_nome_relatorio_por_inputs(dados_entrada, incluir_tabela_referencia=Fal
         str(dados_entrada['temp_amb']),
         str(dados_entrada['temp_max']),
         str(dados_entrada.get('metodo_instalacao', CFG.instalacao_padrao)),
+        str(dados_entrada.get('condutor', CFG.condutor_padrao)),
         str(dados_entrada.get('n_condutores', 1)),
         str(dados_entrada.get('pct_limite_termico', CFG.padroes.get('pct_limite_termico', 85))),
         str(incluir_tabela_referencia)
@@ -1760,6 +1911,20 @@ def main():
         ).strip()
         pct_limite_termico = float(pct_limite_input) if pct_limite_input else padroes['pct_limite_termico']
 
+        opcoes_condutor = condutores_disponiveis()
+        print("\nTipos de condutor:")
+        for indice, opcao in enumerate(opcoes_condutor, 1):
+            print(f"  {indice} - {opcao['rotulo']} (rho x{opcao['fator']:.2f})")
+        condutor_input = input(
+            f"Tipo de condutor [padrao 1 - {opcoes_condutor[0]['rotulo']}]: "
+        ).strip()
+        condutor = opcoes_condutor[0]['id']
+        if condutor_input:
+            if condutor_input.isdigit() and 1 <= int(condutor_input) <= len(opcoes_condutor):
+                condutor = opcoes_condutor[int(condutor_input) - 1]['id']
+            elif condutor_input in CFG.condutores:
+                condutor = condutor_input
+
         dados_entrada = {
             'distancia': distancia,
             'corrente': corrente,
@@ -1768,6 +1933,7 @@ def main():
             'temp_amb': temp_amb,
             'temp_max': temp_max,
             'pct_limite_termico': pct_limite_termico,
+            'condutor': condutor,
         }
 
         salvar_txt = input("Deseja salvar um relatorio completo em TXT? (s/n): ").strip().lower()
@@ -1797,6 +1963,7 @@ def main():
             temp_ambiente=temp_amb, coef_conveccao=h_efetivo,
             diametro_externo=None, temp_maxima=temp_max,
             pct_limite_termico=pct_limite_termico,
+            condutor=condutor,
         )
 
         # Tabela resumo do cálculo principal
@@ -1835,16 +2002,19 @@ def main():
                 bitola, resultado['comprimento_total'], corrente, tensao,
                 temp_ambiente=temp_amb, h_conveccao=h_efetivo,
                 diametro_externo=None, temp_limite=temp_max,
+                condutor=condutor,
             )
             termico = calcular_tempo_aquecimento(
                 bitola, corrente, temp_max, temp_amb, None, h_efetivo,
                 comprimento_termico, pct_limite_termico=pct_limite_termico,
+                condutor=condutor,
             )
 
             ok_queda = queda['queda_final_percentual'] <= resultado['queda_maxima_percentual']
             ok_termico, _ = bitola_atende_termico_limite(
                 bitola, corrente, temp_max, temp_amb, h_efetivo, None,
                 comprimento_termico, pct_limite_termico,
+                condutor=condutor,
             )
             status_termico = "OK" if ok_queda and ok_termico else "REPROVADO"
 
@@ -1880,6 +2050,10 @@ def main():
         )
 
         print(
+            f"\nCondutor: {rotulo_condutor(condutor)} | "
+            f"rho0={resistividade_condutor(condutor):.4f} Ohm.mm2/m"
+        )
+        print(
             f"\nCalculo p/ vdrop: {resultado['secao_teorica_vdrop']:.2f} mm2 | "
             f"Calculo p/ T_limite: {resultado['secao_teorica_termica']:.2f} mm2 | "
             f"Recomendada: {resultado['bitola_recomendada']:.2f} mm2"
@@ -1891,7 +2065,7 @@ def main():
         # Mostrar tabela de referência
         mostrar_tabela = input("Deseja ver a tabela de referência de bitolas? (s/n): ")
         if mostrar_tabela.lower() == 's':
-            tabela_bitolas()
+            tabela_bitolas(condutor=condutor)
 
         if salvar_txt == 's':
             caminho_relatorio = salvar_relatorio_txt(

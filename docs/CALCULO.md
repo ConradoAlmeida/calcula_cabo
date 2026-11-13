@@ -2,7 +2,7 @@
 
 [← Voltar ao README](../README.md) · [Operação](OPERACAO.md) · [Arquitetura](ARQUITETURA.md)
 
-> Dados de entrada, calibração no config.ini, método de instalação, queda de tensão, análise térmica, memorial e bitolas.
+> Dados de entrada, calibração no config.ini, tipo de condutor, método de instalação, queda de tensão, análise térmica, memorial e bitolas.
 
 ---
 
@@ -16,6 +16,7 @@
 | Queda de tensão máxima | % | 3 | Limite usado para dimensionar a bitola |
 | Temperatura máxima do cabo | °C | 200 | Usada na análise térmica |
 | Temperatura ambiente | °C | 25 | Usada na análise térmica |
+| Tipo de condutor | — | Cobre nu sólido | Nu/estanhado, sólido/multifilamento |
 | Diâmetro externo do cabo | mm | estimado | Se omitido, o diâmetro é estimado a partir da bitola |
 | Salvar relatório TXT | s/n | — | Nome do arquivo é derivado dos parâmetros de entrada |
 | Incluir tabela de referência no TXT | s/n | — | Só aparece se o relatório for salvo |
@@ -27,12 +28,14 @@ Todas as constantes físicas, as tabelas de conversão e os valores padrão de e
 
 | Seção | Conteúdo |
 | --- | --- |
-| `[fisica]` | Resistividade do cobre (Ω·mm²/m) a `T₀`, temperatura de referência `T₀` (°C), coeficiente de temperatura α₀ (1/°C), densidade (kg/m³), calor específico (J/(kg·°C)), coeficiente de convecção (W/(m²·°C)) e espessura de isolação (mm). |
+| `[fisica]` | Resistividade do cobre nu sólido (Ω·mm²/m) a `T₀`, temperatura de referência `T₀` (°C), coeficiente de temperatura α₀ (1/°C), densidade (kg/m³), calor específico (J/(kg·°C)), coeficiente de convecção (W/(m²·°C)) e espessura de isolação (mm). |
 | `[padroes]` | Valores fixos de entrada usados quando um campo é deixado em branco. |
 | `[queda_circuito]` | Limites 3% (crítico) e 5% (comum) e rótulos para presets na interface. |
 | `[bitolas_comerciais]` | Lista de bitolas comerciais (mm²). |
 | `[conversao_awg]` | Tabela de conversão mm² → AWG/MCM. |
 | `[capacidade_corrente]` | Capacidade de corrente aproximada por bitola (tabela de referência). |
+| `[condutores]` | Tipo de condutor → fator de resistividade sobre o cobre nu sólido; `padrao` define o tipo inicial. |
+| `[condutores_rotulos]` | Rótulos exibidos na interface para cada tipo de condutor. |
 | `[instalacao]` | Método de instalação → coeficiente de convecção efetivo (W/(m²·°C)); `padrao` define o método inicial. |
 | `[instalacao_rotulos]` | Rótulos exibidos na interface para cada método. |
 | `[agrupamento]` | Fator de convecção conforme o número de condutores agrupados lado a lado. |
@@ -47,17 +50,34 @@ h_efetivo = h(método de instalação) × fator(nº de condutores agrupados)
 
 Um `h` menor (compartimento fechado, embutido na estrutura, muitos condutores no chicote) significa pior dissipação e, portanto, **temperatura mais alta**. Os métodos e fatores são totalmente configuráveis em `config.ini` e aparecem como um seletor e um campo numérico na interface web.
 
+### Tipo de condutor
+
+O tipo de condutor altera a **resistividade** usada em todo o cálculo: seção por queda, equilíbrio térmico, queda em regime, tempo de aquecimento, tabela comparativa, memorial e relatório TXT. O padrão é o cobre nu sólido, que preserva o comportamento anterior.
+
+Os fatores são aplicados sobre a resistividade do cobre nu sólido (`ρ₀ = 0,0175 Ω·mm²/m`) e seguem a **NEC 2023, Capítulo 9, Tabela 8** (resistência DC a 75 °C):
+
+| Condutor | Fator sobre cobre nu sólido |
+| --- | --- |
+| Cobre nu — sólido (maciço) | `1,00` (padrão) |
+| Cobre estanhado — sólido (maciço) | `1,04` |
+| Cobre nu — multifilamento | `1,02` |
+| Cobre estanhado — multifilamento | `1,06` |
+
+A Tabela 8 da NEC separa exatamente essas quatro construções (uncoated/coated, solid/stranded). O estanho reduz a seção efetiva de cobre e o encordamento adiciona o efeito das pernas; por isso a resistência sobe. Se você usar outra referência (por exemplo IEC 60228, que admite cerca de 2% para cobre estanhado), basta recalibrar `[condutores]` no `config.ini`.
+
 Para conferir os números em uso a qualquer momento (via web), acesse `GET /api/config`, que devolve a configuração ativa em JSON.
 
 ## Como o cálculo funciona
 
 ### Queda de tensão
 
-Resistividade do cobre a 20 °C (usada no dimensionamento por queda de tensão):
+Resistividade do cobre nu sólido a 20 °C (base do dimensionamento por queda de tensão):
 
 ```text
 ρ₀ = 0,0175 Ω·mm²/m
 ```
+
+O tipo de condutor escolhido multiplica esse valor pelo fator da seção anterior antes de qualquer cálculo.
 
 Na **análise térmica**, a resistividade varia com a temperatura de operação:
 
@@ -139,6 +159,8 @@ Após dimensionar na interface web, o botão **Memorial** abre a página `/memor
 O programa usa a tabela:
 
 ```text
-0,5  0,75  1,0  1,5  2,5  4  6  10  16  25  35  50
-70  95  120  150  185  240  300  400  500  630 mm²
+0,13  0,16  0,20  0,25  0,35  0,40  0,50  0,75  1,0  1,5  2,5  4
+6  10  16  25  35  50  70  95  120  150  185  240  300  400  500  630 mm²
 ```
+
+A menor bitola é **0,13 mm² (AWG 26)**; a maior é **630 mm²**. A tabela comparativa mostra até quatro anteriores, a recomendada e até duas acima.
