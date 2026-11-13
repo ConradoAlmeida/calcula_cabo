@@ -21,10 +21,14 @@ def test_dimensionamento_exemplo_readme():
     assert r["queda_tensao_percentual"] == 3.57
 
 
-def test_analise_termica_traz_tres_anteriores_e_duas_acima():
-    assert m.obter_bitolas_analise_termica(4.0) == [1.0, 1.5, 2.5, 4.0, 6.0, 10.0]
+def test_analise_termica_traz_quatro_anteriores_e_duas_acima():
+    assert m.obter_bitolas_analise_termica(4.0) == [
+        0.75, 1.0, 1.5, 2.5, 4.0, 6.0, 10.0
+    ]
     assert m.obter_bitolas_analise_termica(0.5) == [0.5, 0.75, 1.0]
-    assert m.obter_bitolas_analise_termica(630.0) == [300.0, 400.0, 500.0, 630.0]
+    assert m.obter_bitolas_analise_termica(630.0) == [
+        240.0, 300.0, 400.0, 500.0, 630.0
+    ]
 
 
 def test_analise_termica_respeita_limites_acima_e_abaixo():
@@ -33,7 +37,7 @@ def test_analise_termica_respeita_limites_acima_e_abaixo():
         indice = opcoes.index(bitola)
         assert opcoes == sorted(opcoes)
         assert len(opcoes) <= 7
-        assert indice <= 3
+        assert indice <= 4
         assert len(opcoes) - indice - 1 <= 2
         assert all(valor < bitola for valor in opcoes[:indice])
         assert all(valor > bitola for valor in opcoes[indice + 1:])

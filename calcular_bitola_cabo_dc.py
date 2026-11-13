@@ -389,8 +389,8 @@ def formatar_tabela(titulo, cabecalhos, linhas, nota=None):
     return "\n".join(linhas_saida)
 
 
-def obter_bitolas_analise_termica(bitola_recomendada, anteriores=3, seguintes=2):
-    """Retorna até 3 anteriores, a recomendada e até 2 bitolas acima.
+def obter_bitolas_analise_termica(bitola_recomendada, anteriores=4, seguintes=2):
+    """Retorna até 4 anteriores, a recomendada e até 2 bitolas acima.
 
     As anteriores são menores que a recomendada e ficam reprovadas por
     definição; as duas acima mostram a margem de segurança. A lista é
@@ -1512,7 +1512,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
 
     secoes.append({
         "id": "comparativo",
-        "titulo": "6. Comparativo - anteriores, recomendada e acima",
+        "titulo": "6. Comparativo - 4 anteriores, recomendada e acima",
         "descricao": texto_criterio_selecao_bitola(pct_limite),
         "tabela": comparativo,
     })

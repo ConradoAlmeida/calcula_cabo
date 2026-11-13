@@ -12,7 +12,7 @@ com memorial de cálculo.
 - Seleciona a **menor** bitola comercial com **Vdrop T. final** dentro do limite **e** critério térmico aprovado.
 - Converte a bitola recomendada para **AWG** / MCM.
 - Mostra queda de tensão inicial (cabo frio) e em regime (ρ(T_regime)).
-- Compara até três anteriores reprovadas, a recomendada e até duas bitolas acima, em ordem crescente.
+- Compara até quatro anteriores reprovadas, a recomendada e até duas bitolas acima, em ordem crescente.
 - Exibe status unificado **APROVADO** / **REPROVADO** (queda + térmica).
 - Opcionalmente gera um relatório completo em `.txt`.
 - Opcionalmente exibe uma tabela de referência de bitolas e capacidade de corrente.
