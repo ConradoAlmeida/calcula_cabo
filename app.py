@@ -313,6 +313,7 @@ def _calcular(entradas):
             "queda_inicial_percentual": f"{queda['queda_inicial_percentual']:.2f}",
             "queda_final_volts": f"{queda['queda_final_volts']:.2f}",
             "queda_final_percentual": f"{queda['queda_final_percentual']:.2f}",
+            "tensao_final": f"{entradas['tensao'] - queda['queda_final_volts']:.2f}",
             "potencia": f"{termico['potencia_por_metro_watts']:.2f}",
             "temp_regime": str(termico["temp_regimen_celsius"]),
             "resistividade_inicial": f"{queda['resistividade_inicial']:.4f}",

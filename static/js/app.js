@@ -75,6 +75,7 @@
         <td>${r.awg}</td>
         <td>${r.queda_inicial_volts} V (${r.queda_inicial_percentual}%)</td>
         <td>${r.queda_final_volts} V (${r.queda_final_percentual}%)</td>
+        <td>${r.tensao_final} V</td>
         <td>${r.potencia}</td>
         <td>${r.temp_regime}</td>
         <td>${r.resistividade_inicial}</td>

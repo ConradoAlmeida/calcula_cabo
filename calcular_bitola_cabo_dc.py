@@ -1631,11 +1631,11 @@ def salvar_relatorio_txt(
     )
 
     tabela_termica = formatar_tabela(
-        "ANALISE TERMICA COMPARATIVA (AWG ANTERIOR, RECOMENDADO E PROXIMO)",
+        "ANALISE TERMICA COMPARATIVA (ANTERIORES, RECOMENDADA E ACIMA)",
         [
             "Bitola (mm2)", "AWG",
             "Vdrop inicial (V)", "Vdrop inicial (%)",
-            "Vdrop T.final (V)", "Vdrop T.final (%)",
+            "Vdrop T.final (V)", "Vdrop T.final (%)", "V final (V)",
             "P. Joule (W/m)", "Temp. regime (C)", "Margem termica (C)",
             "Tempo ate Tmax (min)", "Status",
         ],
@@ -1855,6 +1855,7 @@ def main():
                 f"{queda['queda_inicial_percentual']:.2f}",
                 f"{queda['queda_final_volts']:.2f}",
                 f"{queda['queda_final_percentual']:.2f}",
+                f"{tensao - queda['queda_final_volts']:.2f}",
                 f"{termico['potencia_por_metro_watts']:.2f}",
                 f"{termico['temp_regimen_celsius']}",
                 margem_txt,
@@ -1863,11 +1864,11 @@ def main():
             ])
 
         imprimir_tabela(
-            "ANALISE TERMICA COMPARATIVA (AWG ANTERIOR, RECOMENDADO E PROXIMO)",
+            "ANALISE TERMICA COMPARATIVA (ANTERIORES, RECOMENDADA E ACIMA)",
             [
                 "Bitola (mm2)", "AWG",
                 "Vdrop inicial (V)", "Vdrop inicial (%)",
-                "Vdrop T.final (V)", "Vdrop T.final (%)",
+                "Vdrop T.final (V)", "Vdrop T.final (%)", "V final (V)",
                 "P. Joule (W/m)", "Temp. regime (C)", "Margem termica (C)",
                 "Tempo ate Tmax (min)", "Status",
             ],
