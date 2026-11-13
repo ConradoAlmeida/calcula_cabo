@@ -21,11 +21,23 @@ def test_dimensionamento_exemplo_readme():
     assert r["queda_tensao_percentual"] == 3.57
 
 
+def test_tabela_inclui_awg_26_para_cargas_baixas():
+    assert m.CFG.bitolas_comerciais[0] == 0.13
+    assert m.mm2_para_awg(0.13) == 26
+    r = m.calcular_bitola_cb(
+        distancia=0.1, corrente=0.1, tensao=12, queda_percentual=3
+    )
+    assert r["bitola_recomendada"] == 0.13
+    assert r["bitola_awg"] == 26
+
+
 def test_analise_termica_traz_ate_quatro_anteriores_e_duas_acima():
     assert m.obter_bitolas_analise_termica(4.0) == [
         0.75, 1.0, 1.5, 2.5, 4.0, 6.0, 10.0
     ]
-    assert m.obter_bitolas_analise_termica(0.5) == [0.5, 0.75, 1.0]
+    assert m.obter_bitolas_analise_termica(0.5) == [
+        0.20, 0.25, 0.35, 0.40, 0.5, 0.75, 1.0
+    ]
     assert m.obter_bitolas_analise_termica(630.0) == [
         240.0, 300.0, 400.0, 500.0, 630.0
     ]
@@ -251,7 +263,7 @@ def test_carregar_config_padrao_bate_com_embutido():
     assert cfg.temperatura_referencia == 20.0
     assert cfg.coef_temp_cobre == 0.00393
     assert cfg.coef_conveccao == 10.0
-    assert len(cfg.bitolas_comerciais) == 22
+    assert len(cfg.bitolas_comerciais) == 28
 
 
 def test_override_resistividade_muda_resultado(tmp_path):
@@ -424,3 +436,4 @@ def test_coef_conveccao_default_sem_argumento():
     t = m.calcular_tempo_aquecimento(2.5, 20, 200, 25)
     esperado = m.calcular_tempo_aquecimento(2.5, 20, 200, 25, None, m.CFG.coef_conveccao)
     assert t["temp_regimen_value"] == esperado["temp_regimen_value"]
+

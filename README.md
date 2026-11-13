@@ -11,6 +11,7 @@ com memorial de cálculo.
 - Calcula a seção teórica do cabo (mm²) pela fórmula de queda de tensão.
 - Seleciona a **menor** bitola comercial com **Vdrop T. final** dentro do limite **e** critério térmico aprovado.
 - Converte a bitola recomendada para **AWG** / MCM.
+- Usa uma tabela comercial de **0,13 mm² (AWG 26)** até 630 mm².
 - Mostra queda de tensão inicial (cabo frio) e em regime (ρ(T_regime)).
 - Compara até quatro anteriores reprovadas, a recomendada e até duas bitolas acima, em ordem crescente.
 - Exibe status unificado **APROVADO** / **REPROVADO** (queda + térmica).
