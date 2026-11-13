@@ -34,7 +34,7 @@ O TXT contém:
 1. dados de entrada (incluindo o tipo de condutor)
 2. resumo executivo
 3. tabela de dimensionamento
-4. análise térmica comparativa
+4. análise térmica comparativa (inclui o AWG em foco, se informado)
 5. tabela de referência (opcional)
 
 ## Exemplo

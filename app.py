@@ -22,7 +22,9 @@ from calcular_bitola_cabo_dc import (
     config_para_dict,
     condutores_disponiveis,
     gerar_memorial_calculo,
+    normalizar_awg_foco,
     normalizar_condutor,
+    obter_bitolas_com_foco,
     resistividade_condutor,
     rotulo_condutor,
     texto_rodape_certificacao,
@@ -203,6 +205,16 @@ def _parse_entradas(dados):
     if condutor not in CFG.condutores:
         condutor = CFG.condutor_padrao
 
+    # AWG em foco (opcional): inclui a bitola na tabela, aprovada ou não.
+    awg_foco_texto = str(dados.get("awg_foco") or "").strip()
+    if awg_foco_texto:
+        try:
+            awg_foco = normalizar_awg_foco(awg_foco_texto)
+        except ValueError as exc:
+            raise ValueError(str(exc))
+    else:
+        awg_foco = None
+
     # Número de condutores agrupados lado a lado.
     try:
         n_condutores = int(float(dados.get("n_condutores") or 1))
@@ -220,6 +232,7 @@ def _parse_entradas(dados):
         "pct_limite_termico": pct_limite_termico,
         "metodo_instalacao": metodo,
         "condutor": condutor,
+        "awg_foco": awg_foco,
         "n_condutores": n_condutores,
     }
 
@@ -292,13 +305,22 @@ def _calcular(entradas):
         "condutor_rotulo": resultado["condutor_rotulo"],
         "fator_condutor": f"{resultado['fator_condutor']:.2f}",
         "resistividade_condutor": f"{resultado['resistividade_condutor_20c']:.4f}",
+        "awg_foco": entradas.get("awg_foco") or "",
     }
 
+    bitolas_comparativo, bitola_foco = obter_bitolas_com_foco(
+        resultado["bitola_recomendada"], entradas.get("awg_foco"),
+    )
     linhas_termicas = []
     alerta_recomendada = None
     linha_recomendada = None
-    for bitola in obter_bitolas_analise_termica(resultado["bitola_recomendada"]):
-        awg = mm2_para_awg(bitola)
+    for bitola in bitolas_comparativo:
+        is_foco = bitola_foco is not None and abs(bitola - bitola_foco) < 1e-9
+        awg = (
+            str(entradas["awg_foco"])
+            if is_foco and entradas.get("awg_foco")
+            else str(mm2_para_awg(bitola))
+        )
         queda = calcular_queda_comparativa(
             bitola, resultado["comprimento_total"], entradas["corrente"], entradas["tensao"],
             temp_ambiente=entradas["temp_amb"],
@@ -345,6 +367,7 @@ def _calcular(entradas):
             "status": _status_linha_termica(ok_queda, ok_termico),
             "alerta_termico": alerta,
             "recomendada": bitola == resultado["bitola_recomendada"],
+            "foco": is_foco,
         }
         linhas_termicas.append(linha)
 
@@ -505,9 +528,17 @@ def api_relatorio():
         status_queda,
     ]]
 
+    bitolas_comparativo, bitola_foco = obter_bitolas_com_foco(
+        resultado["bitola_recomendada"], entradas.get("awg_foco"),
+    )
     linhas_termicas = []
-    for bitola in obter_bitolas_analise_termica(resultado["bitola_recomendada"]):
-        awg = mm2_para_awg(bitola)
+    for bitola in bitolas_comparativo:
+        is_foco = bitola_foco is not None and abs(bitola - bitola_foco) < 1e-9
+        awg = (
+            str(entradas["awg_foco"])
+            if is_foco and entradas.get("awg_foco")
+            else str(mm2_para_awg(bitola))
+        )
         queda = calcular_queda_comparativa(
             bitola, resultado["comprimento_total"], entradas["corrente"], entradas["tensao"],
             temp_ambiente=entradas["temp_amb"],
@@ -537,7 +568,7 @@ def api_relatorio():
         else:
             margem_txt = f"{margem:.1f}"
         linhas_termicas.append([
-            f"{bitola:.2f}", f"{awg}",
+            f"{bitola:.2f}" + (" *" if is_foco else ""), f"{awg}",
             f"{queda['queda_inicial_volts']:.2f}", f"{queda['queda_inicial_percentual']:.2f}",
             f"{queda['queda_final_volts']:.2f}", f"{queda['queda_final_percentual']:.2f}",
             f"{termico['potencia_por_metro_watts']:.2f}", f"{termico['temp_regimen_celsius']}",

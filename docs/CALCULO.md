@@ -17,6 +17,7 @@
 | Temperatura máxima do cabo | °C | 200 | Usada na análise térmica |
 | Temperatura ambiente | °C | 25 | Usada na análise térmica |
 | Tipo de condutor | — | Cobre nu sólido | Nu/estanhado; sólido, multifilamento rígido ou flexível |
+| AWG em foco | AWG | — | Inclui a bitola na tabela comparativa, mesmo reprovada |
 | Diâmetro externo do cabo | mm | estimado | Se omitido, o diâmetro é estimado a partir da bitola |
 | Salvar relatório TXT | s/n | — | Nome do arquivo é derivado dos parâmetros de entrada |
 | Incluir tabela de referência no TXT | s/n | — | Só aparece se o relatório for salvo |
@@ -68,6 +69,15 @@ Os fatores são aplicados sobre a resistividade do cobre nu sólido (`ρ₀ = 0,
 A classe 2 (poucos fios grossos, cabo rígido) tem passo de torção maior e penalidade menor. As classes 4/5 (muitos fios finos, cabo flexível/manga) têm passo curto e comprimento real maior; por isso a resistência sobe mais. O estanho reduz a seção efetiva de cobre e acrescenta a resistência da camada, mas como a cobertura é fina o efeito efetivo é de poucos por cento — não os ~6× da resistividade do estanho isolado.
 
 A IEC 60228 fixa limites máximos de resistência DC por classe e bitola; os fatores acima são uma aproximação por classe para uso na calculadora. Se você usar outra referência, basta recalibrar `[condutores]` no `config.ini`.
+
+### AWG em foco
+
+O campo **AWG em foco** inclui uma bitola extra na tabela comparativa, independentemente de ela estar aprovada ou reprovada e de estar fora da janela normal (até quatro anteriores + recomendada + até duas acima). É útil para conferir um cabo específico que você já tem em mãos.
+
+- Se o AWG existe em `[conversao_awg]`, o programa usa a bitola comercial correspondente (por exemplo, `12` → 4,00 mm²).
+- Se o AWG não existe na tabela comercial (por exemplo, `17`), o programa usa a área geométrica exata do AWG, calculada por `d = 0,127 × 92^((36−n)/39)`.
+- A linha do foco é marcada com **foco** na interface e com `*` no TXT/memorial.
+- O campo aceita `0` a `40`, além de `1/0`, `2/0`, `3/0` e `4/0`.
 
 Para conferir os números em uso a qualquer momento (via web), acesse `GET /api/config`, que devolve a configuração ativa em JSON.
 

@@ -50,8 +50,8 @@
     const rows = linhas
       .map(
         (r) => `
-      <tr class="${r.recomendada ? "row-recomendada" : ""}">
-        <td>${escapeHtml(r.bitola)}</td>
+      <tr class="${r.recomendada ? "row-recomendada" : ""} ${r.foco ? "row-foco" : ""}">
+        <td>${escapeHtml(r.bitola)}${r.foco ? ' <span class="badge rounded-pill text-bg-info badge-foco">foco</span>' : ""}</td>
         <td>${escapeHtml(r.awg)}</td>
         <td>${escapeHtml(r.vdrop_ini)}</td>
         <td>${escapeHtml(r.vdrop_fin)}</td>

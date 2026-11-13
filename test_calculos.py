@@ -123,6 +123,94 @@ def test_condutor_invalido_usa_padrao_na_api():
     assert entradas["condutor"] == m.CFG.condutor_padrao
 
 
+def test_awg_foco_resolve_comercial_e_exato():
+    assert m.resolver_bitola_awg(26) == (0.13, "26")
+    assert m.resolver_bitola_awg("1/0")[1] == "1/0"
+    assert m.awg_para_mm2(17) == pytest.approx(1.0378, abs=1e-3)
+    assert m.resolver_bitola_awg(17)[0] == pytest.approx(1.0378, abs=1e-3)
+    assert m.normalizar_awg_foco("0") == "1/0"
+    assert m.normalizar_awg_foco("2/0") == "2/0"
+    assert m.awg_para_mm2("1/0") == pytest.approx(53.475, abs=1e-2)
+    assert m.awg_para_mm2("2/0") == pytest.approx(67.431, abs=1e-2)
+
+
+def test_awg_foco_inclui_bitola_fora_da_janela():
+    from app import _calcular, _parse_entradas
+
+    entrada = {
+        "distancia": 7,
+        "corrente": 7,
+        "tensao": 12,
+        "queda_percentual": 5,
+        "temp_max": 200,
+        "temp_amb": 25,
+        "pct_limite_termico": 85,
+        "awg_foco": "26",
+    }
+    payload = _calcular(_parse_entradas(entrada))
+    linhas = {linha["bitola"]: linha for linha in payload["termicas"]}
+    assert "0.13" in linhas
+    assert linhas["0.13"]["foco"] is True
+    assert linhas["0.13"]["awg"] == "26"
+    assert linhas["0.13"]["status"] in {"OK", "REPROVADO"}
+
+    comparativo = next(
+        secao for secao in payload["memorial"]["secoes"]
+        if secao["id"] == "comparativo"
+    )
+    assert "foco" in comparativo["descricao"].lower()
+    assert any(linha["foco"] for linha in comparativo["tabela"])
+
+
+def test_awg_foco_fora_da_tabela_comercial_usa_area_exata():
+    from app import _calcular, _parse_entradas
+
+    entrada = {
+        "distancia": 7,
+        "corrente": 7,
+        "tensao": 12,
+        "queda_percentual": 5,
+        "temp_max": 200,
+        "temp_amb": 25,
+        "pct_limite_termico": 85,
+        "awg_foco": "17",
+    }
+    payload = _calcular(_parse_entradas(entrada))
+    linhas = {linha["bitola"]: linha for linha in payload["termicas"]}
+    assert "1.04" in linhas
+    assert linhas["1.04"]["foco"] is True
+    assert linhas["1.04"]["awg"] == "17"
+
+
+def test_awg_foco_nao_duplica_recomendada():
+    from app import _calcular, _parse_entradas
+
+    entrada = {
+        "distancia": 7,
+        "corrente": 7,
+        "tensao": 12,
+        "queda_percentual": 5,
+        "temp_max": 200,
+        "temp_amb": 25,
+        "pct_limite_termico": 85,
+        "awg_foco": "12",
+    }
+    payload = _calcular(_parse_entradas(entrada))
+    linhas = [linha for linha in payload["termicas"] if linha["bitola"] == "4.00"]
+    assert len(linhas) == 1
+    assert linhas[0]["foco"] is True
+    assert linhas[0]["recomendada"] is True
+
+
+def test_awg_foco_invalido_retorna_erro():
+    from app import _parse_entradas
+
+    with pytest.raises(ValueError, match="AWG em foco"):
+        _parse_entradas({"awg_foco": "abc"})
+    with pytest.raises(ValueError, match="faixa"):
+        _parse_entradas({"awg_foco": "99"})
+
+
 def test_payload_inclui_condutor_memorial_e_referencia():
     from app import _calcular, _parse_entradas
 

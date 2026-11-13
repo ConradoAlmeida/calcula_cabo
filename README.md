@@ -15,6 +15,7 @@ com memorial de cálculo.
 - Usa uma tabela comercial de **0,13 mm² (AWG 26)** até 630 mm².
 - Mostra queda de tensão inicial (cabo frio) e em regime (ρ(T_regime)).
 - Compara até quatro anteriores reprovadas, a recomendada e até duas bitolas acima, em ordem crescente.
+- Permite incluir um **AWG em foco** na tabela comparativa, mesmo reprovado e fora da janela de anteriores/acima.
 - Exibe status unificado **APROVADO** / **REPROVADO** (queda + térmica).
 - Opcionalmente gera um relatório completo em `.txt`.
 - Opcionalmente exibe uma tabela de referência de bitolas e capacidade de corrente.

@@ -22,6 +22,8 @@
   const metodoDefault = metodoEl ? metodoEl.value : null;
   const condutorEl = form.elements["condutor"];
   const condutorDefault = condutorEl ? condutorEl.value : null;
+  const awgFocoEl = form.elements["awg_foco"];
+  const awgFocoDefault = awgFocoEl ? awgFocoEl.value : "";
   const MEMORIAL_KEY = "calc_memorial_payload";
 
   function formData() {
@@ -33,6 +35,8 @@
     if (metodo) data["metodo_instalacao"] = metodo.value;
     const condutor = form.elements["condutor"];
     if (condutor) data["condutor"] = condutor.value;
+    const awgFoco = form.elements["awg_foco"];
+    if (awgFoco) data["awg_foco"] = awgFoco.value;
     const nCond = form.elements["n_condutores"];
     if (nCond) data["n_condutores"] = nCond.value;
     return data;
@@ -74,8 +78,8 @@
     body.innerHTML = rows
       .map(
         (r) => `
-      <tr class="${r.recomendada ? "row-recomendada" : ""} ${termicaRowClass(r.alerta_termico)}">
-        <td>${r.bitola}</td>
+      <tr class="${r.recomendada ? "row-recomendada" : ""} ${r.foco ? "row-foco" : ""} ${termicaRowClass(r.alerta_termico)}">
+        <td>${r.bitola}${r.foco ? ' <span class="badge rounded-pill text-bg-info badge-foco">foco</span>' : ""}</td>
         <td>${r.awg}</td>
         <td>${r.queda_inicial_volts} V (${r.queda_inicial_percentual}%)</td>
         <td>${r.queda_final_volts} V (${r.queda_final_percentual}%)</td>
@@ -341,6 +345,7 @@
     });
     if (metodoEl && metodoDefault !== null) metodoEl.value = metodoDefault;
     if (condutorEl && condutorDefault !== null) condutorEl.value = condutorDefault;
+    if (awgFocoEl) awgFocoEl.value = awgFocoDefault;
     syncVdropPresetActive();
     if (btnMemorial) btnMemorial.hidden = true;
     sessionStorage.removeItem(MEMORIAL_KEY);

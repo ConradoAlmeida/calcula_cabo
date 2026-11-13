@@ -799,6 +799,15 @@ tr.row-recomendada:hover td {
   background-color: var(--bg-hover) !important;
 }
 
+tr.row-foco td {
+  background-color: rgba(56, 189, 248, 0.06) !important;
+}
+
+.badge-foco {
+  font-size: 0.62rem;
+  vertical-align: middle;
+}
+
 /* Destaque térmico na tabela comparativa */
 tr.termica-atencao td:nth-child(6),
 tr.termica-atencao td:nth-child(7) {

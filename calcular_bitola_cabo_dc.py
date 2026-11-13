@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import configparser
 import hashlib
+import math
 import os
 
 # ---------------------------------------------------------------------------
@@ -952,6 +953,70 @@ def mm2_para_awg(mm2):
     return CFG.conversao_awg.get(mm2, f"{mm2} mm²")
 
 
+def _awg_numero(texto):
+    """Normaliza um AWG digitado (10, AWG 10, 1/0...) para número inteiro."""
+    texto = str(texto).strip().upper().replace("AWG", "").strip()
+    if texto in {"1/0", "2/0", "3/0", "4/0"}:
+        return 1 - int(texto[0])
+    try:
+        numero = int(float(texto))
+    except (TypeError, ValueError):
+        raise ValueError(
+            "AWG em foco inválido. Use 0 a 40 ou 1/0, 2/0, 3/0, 4/0."
+        )
+    if numero < -3 or numero > 40:
+        raise ValueError(
+            "AWG em foco fora da faixa suportada (0 a 40 ou 1/0 a 4/0)."
+        )
+    return numero
+
+
+def normalizar_awg_foco(texto):
+    """Devolve o AWG em foco no formato exibido (ex.: 12, 1/0)."""
+    numero = _awg_numero(texto)
+    return f"{1 - numero}/0" if numero <= 0 else str(numero)
+
+
+def awg_para_mm2(texto):
+    """Converte um AWG exato para mm² (d = 0,127 × 92^((36-n)/39))."""
+    numero = _awg_numero(texto)
+    diametro_mm = 0.127 * (92 ** ((36 - numero) / 39))
+    return math.pi * (diametro_mm / 2) ** 2
+
+
+def resolver_bitola_awg(texto, cfg=None):
+    """Resolve o AWG em foco para uma bitola comercial ou para a área exata.
+
+    Retorna (bitola_mm2, rotulo_awg). Quando o AWG existe na tabela comercial
+    configurada, usa a bitola comercial correspondente; caso contrário, usa a
+    área geométrica exata do AWG.
+    """
+    cfg = cfg or CFG
+    numero = _awg_numero(texto)
+    for bitola, awg in cfg.conversao_awg.items():
+        try:
+            if _awg_numero(awg) == numero:
+                return bitola, normalizar_awg_foco(awg)
+        except ValueError:
+            continue
+    return round(awg_para_mm2(numero), 4), normalizar_awg_foco(numero)
+
+
+def obter_bitolas_com_foco(
+    bitola_recomendada, awg_foco=None, anteriores=4, seguintes=2, cfg=None,
+):
+    """Lista comparativa normal + AWG em foco, sem duplicar a bitola."""
+    bitolas = obter_bitolas_analise_termica(
+        bitola_recomendada, anteriores=anteriores, seguintes=seguintes,
+    )
+    foco = None
+    if awg_foco:
+        foco, _ = resolver_bitola_awg(awg_foco, cfg)
+        if not any(abs(bitola - foco) < 1e-9 for bitola in bitolas):
+            bitolas = sorted(bitolas + [foco])
+    return bitolas, foco
+
+
 def bitola_atende_criterios(
     bitola,
     comprimento_total,
@@ -1365,6 +1430,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     n_cond = entradas.get("n_condutores", 1)
     condutor_id = entradas.get("condutor", cfg.condutor_padrao)
     condutor_rotulo = cfg.condutores_rotulos.get(condutor_id, condutor_id)
+    awg_foco = entradas.get("awg_foco")
 
     comprimento = resultado["comprimento_total"]
     comprimento_termico = distancia
@@ -1651,7 +1717,11 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
     })
 
     comparativo = []
-    for b in obter_bitolas_analise_termica(bitola):
+    bitolas_comparativo, bitola_foco = obter_bitolas_com_foco(
+        bitola, awg_foco, cfg=cfg,
+    )
+    for b in bitolas_comparativo:
+        is_foco = bitola_foco is not None and abs(b - bitola_foco) < 1e-9
         q = calcular_queda_comparativa(
             b, comprimento, corrente, tensao,
             temp_ambiente=temp_amb, h_conveccao=h_efetivo,
@@ -1674,18 +1744,23 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             status = "REPROVADO"
         comparativo.append({
             "bitola": f"{_fmt(b)} mm²",
-            "awg": str(mm2_para_awg(b)),
+            "awg": str(awg_foco) if is_foco and awg_foco else str(mm2_para_awg(b)),
             "vdrop_ini": f"{_fmt(q['queda_inicial_volts'])} V ({_fmt(q['queda_inicial_percentual'])} %)",
             "vdrop_fin": f"{_fmt(q['queda_final_volts'])} V ({_fmt(q['queda_final_percentual'])} %)",
             "temp_regime": str(t["temp_regimen_celsius"]),
             "status": status,
             "recomendada": b == bitola,
+            "foco": is_foco,
         })
+
+    descricao_comparativo = texto_criterio_selecao_bitola(pct_limite)
+    if awg_foco:
+        descricao_comparativo += f" Inclui AWG {awg_foco} em foco, independente do status."
 
     secoes.append({
         "id": "comparativo",
         "titulo": "6. Comparativo - até 4 anteriores, recomendada e acima",
-        "descricao": texto_criterio_selecao_bitola(pct_limite),
+        "descricao": descricao_comparativo,
         "tabela": comparativo,
     })
 
@@ -1774,6 +1849,7 @@ def salvar_relatorio_txt(
     h_efetivo = coef_conveccao_efetivo(metodo_id, n_condutores)
     condutor = dados_entrada.get('condutor', CFG.condutor_padrao)
     condutor_rotulo = rotulo_condutor(condutor)
+    awg_foco = dados_entrada.get('awg_foco')
 
     secao_entrada = [
         "DADOS DE ENTRADA",
@@ -1790,6 +1866,8 @@ def salvar_relatorio_txt(
         f"- Coef. conveccao efetivo (W/m2.C): {h_efetivo:.2f}",
         ""
     ]
+    if awg_foco:
+        secao_entrada.insert(-1, f"- AWG em foco: {awg_foco}")
 
     tabela_principal = formatar_tabela(
         "RESULTADO PRINCIPAL - DIMENSIONAMENTO",
@@ -1805,6 +1883,11 @@ def salvar_relatorio_txt(
         ),
     )
 
+    tem_foco = any(str(linha[0]).rstrip().endswith("*") for linha in linhas_termicas)
+    nota_termica = texto_nota_status_comparativo()
+    if tem_foco:
+        nota_termica += " * = AWG em foco (incluido manualmente, aprovado ou nao)."
+
     tabela_termica = formatar_tabela(
         "ANALISE TERMICA COMPARATIVA (ANTERIORES, RECOMENDADA E ACIMA)",
         [
@@ -1815,7 +1898,7 @@ def salvar_relatorio_txt(
             "Tempo ate Tmax (min)", "Status",
         ],
         linhas_termicas,
-        nota=texto_nota_status_comparativo(),
+        nota=nota_termica,
     )
 
     secao_resumo = [
@@ -1831,6 +1914,8 @@ def salvar_relatorio_txt(
         f"- Queda limite: {resultado_principal['queda_maxima_permitida']:.2f} V ({resultado_principal['queda_maxima_percentual']:.2f}%)",
         ""
     ]
+    if awg_foco:
+        secao_resumo.insert(-1, f"- AWG em foco: {awg_foco}")
 
     conteudo = []
     conteudo.append("=" * 90)
@@ -1891,6 +1976,7 @@ def gerar_nome_relatorio_por_inputs(dados_entrada, incluir_tabela_referencia=Fal
         str(dados_entrada['temp_max']),
         str(dados_entrada.get('metodo_instalacao', CFG.instalacao_padrao)),
         str(dados_entrada.get('condutor', CFG.condutor_padrao)),
+        str(dados_entrada.get('awg_foco', '')),
         str(dados_entrada.get('n_condutores', 1)),
         str(dados_entrada.get('pct_limite_termico', CFG.padroes.get('pct_limite_termico', 85))),
         str(incluir_tabela_referencia)
@@ -1948,6 +2034,14 @@ def main():
             elif condutor_input in CFG.condutores:
                 condutor = condutor_input
 
+        awg_foco_input = input("AWG em foco (opcional, Enter para nenhum): ").strip()
+        awg_foco = None
+        if awg_foco_input:
+            try:
+                awg_foco = normalizar_awg_foco(awg_foco_input)
+            except ValueError as exc:
+                print(f"AVISO: {exc} Ignorando o AWG em foco.")
+
         dados_entrada = {
             'distancia': distancia,
             'corrente': corrente,
@@ -1957,6 +2051,7 @@ def main():
             'temp_max': temp_max,
             'pct_limite_termico': pct_limite_termico,
             'condutor': condutor,
+            'awg_foco': awg_foco,
         }
 
         salvar_txt = input("Deseja salvar um relatorio completo em TXT? (s/n): ").strip().lower()
@@ -2016,11 +2111,18 @@ def main():
         )
 
         # Análise térmica comparativa: anteriores reprovadas, recomendada e acima
-        bitolas_analise = obter_bitolas_analise_termica(resultado['bitola_recomendada'])
+        bitolas_analise, bitola_foco = obter_bitolas_com_foco(
+            resultado['bitola_recomendada'], awg_foco,
+        )
         linhas_termicas = []
 
         for bitola in bitolas_analise:
-            awg = mm2_para_awg(bitola)
+            is_foco = bitola_foco is not None and abs(bitola - bitola_foco) < 1e-9
+            awg = (
+                str(awg_foco)
+                if is_foco and awg_foco
+                else str(mm2_para_awg(bitola))
+            )
             queda = calcular_queda_comparativa(
                 bitola, resultado['comprimento_total'], corrente, tensao,
                 temp_ambiente=temp_amb, h_conveccao=h_efetivo,
@@ -2045,7 +2147,7 @@ def main():
             margem_txt = "—" if isinstance(margem, float) and margem == float("-inf") else f"{margem:.1f}"
 
             linhas_termicas.append([
-                f"{bitola:.2f}",
+                f"{bitola:.2f}" + (" *" if is_foco else ""),
                 f"{awg}",
                 f"{queda['queda_inicial_volts']:.2f}",
                 f"{queda['queda_inicial_percentual']:.2f}",
@@ -2059,6 +2161,10 @@ def main():
                 status_termico
             ])
 
+        nota_termica = texto_nota_status_comparativo()
+        if bitola_foco is not None:
+            nota_termica += " * = AWG em foco (incluido manualmente, aprovado ou nao)."
+
         imprimir_tabela(
             "ANALISE TERMICA COMPARATIVA (ANTERIORES, RECOMENDADA E ACIMA)",
             [
@@ -2069,7 +2175,7 @@ def main():
                 "Tempo ate Tmax (min)", "Status",
             ],
             linhas_termicas,
-            nota=texto_nota_status_comparativo(),
+            nota=nota_termica,
         )
 
         print(
