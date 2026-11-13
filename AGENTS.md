@@ -30,8 +30,9 @@ docker compose up -d --build              # container
 3. **Mudou cálculo? Atualize os testes** (`test_calculos.py`) e o memorial.
 4. **Segredos fora do Git.** `CREDENTIALS_API_TOKEN` e `FLASK_SECRET_KEY` vêm
    do `.env`; nunca comite `.env`.
-5. **Deploy:** push no GitHub (`origin`); o Gitea espelha; no moyaserver use o
-   overlay `docker-compose.moya.yml` (porta 8030).
+5. **Deploy:** push no GitHub (`origin`); o servidor puxa do GitHub e usa o
+   overlay `docker-compose.moya.yml` (porta 8030). O Gitea é mirror read-only
+   opcional, não é necessário para o deploy.
 6. **Avisos são parte do produto.** Não remova as ressalvas de norma/tabela do
    fabricante do README.
 

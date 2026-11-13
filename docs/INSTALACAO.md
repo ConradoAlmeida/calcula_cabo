@@ -74,31 +74,34 @@ O `config.ini` do host é montado no container (somente leitura). Edite-o para r
 
 ### moyaserver (produção)
 
-Repositório espelhado no Gitea: `ssh://git@moya-git.local:222/moya-dev/calcula_cabo.git`  
-(mirror read-only do GitHub; o push de desenvolvimento vai para `origin` no GitHub.)
+O GitHub é a fonte de desenvolvimento; o Gitea é um mirror read-only em
+`ssh://git@moya-git.local:222/moya-dev/calcula_cabo.git`. O push vai para
+`origin` no GitHub e o servidor também puxa de `origin` (GitHub).
 
 Fluxo:
 
 1. **Development:** `git push origin master` (GitHub)
-2. **Gitea:** sincroniza o mirror (automático ou manual em *Sync Mirror* no Gitea)
-3. **moyaserver:** `git pull` + rebuild abaixo
+2. **moyaserver:** `git pull origin master` + rebuild abaixo
+3. **Gitea:** mirror opcional para consulta; sincroniza no intervalo dele ou em *Sync Mirror*
 
 A porta **8000** do host já é usada pelo Portainer; use o overlay `docker-compose.moya.yml` (publica em **8030**):
 
 ```bash
-git clone ssh://git@moya-git.local:222/moya-dev/calcula_cabo.git
+git clone https://github.com/ConradoAlmeida/calcula_cabo.git
 cd calcula_cabo
+git remote add gitea ssh://git@moya-git.local:222/moya-dev/calcula_cabo.git
 docker compose -f docker-compose.yml -f docker-compose.moya.yml up -d --build
 ```
 
 Atualizar:
 
 ```bash
-git pull
+git pull origin master
 docker compose -f docker-compose.yml -f docker-compose.moya.yml up -d --build
 ```
 
-Após push no GitHub, aguarde o mirror do Gitea ou dispare *Sync Mirror* antes do `git pull` no servidor.
+O deploy não depende do mirror do Gitea. Se quiser atualizar o mirror para
+consulta, use *Sync Mirror* no Gitea.
 
 Acesso interno: `http://moya-calcula-cabo.local` (via Caddy no moyaserver).
 
