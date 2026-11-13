@@ -1,12 +1,14 @@
 /* Identidade visual alinhada ao moya-weather-pro (tema escuro). */
 
 :root {
+  color-scheme: dark;
   --bg-dark: #1a1d29;
   --bg-card: #252936;
   --bg-hover: #2e3241;
   --text-primary: #ffffff;
   --text-secondary: #a8adb8;
   --accent-blue: #4a9eff;
+  --accent-blue-hover: #82bcff;
   --accent-green: #5cd6a8;
   --accent-orange: #3ceef8;
   --accent-red: #ff6b6b;
@@ -31,7 +33,7 @@
   --bs-warning: #ffaa4d;
   --bs-warning-rgb: 255, 170, 77;
   --bs-link-color: var(--accent-blue);
-  --bs-link-hover-color: #82bcff;
+  --bs-link-hover-color: var(--accent-blue-hover);
   --bs-emphasis-color: var(--text-primary);
   --bs-form-control-bg: var(--bg-card);
   --bs-form-control-border-color: var(--border-color);
@@ -140,7 +142,7 @@ body {
   align-items: flex-start;
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--bg-hover);
   border: 1px solid var(--border-color);
 }
 
@@ -235,7 +237,7 @@ body {
   flex-shrink: 0;
   padding: 0.35rem 1rem 0.5rem;
   border-top: 1px solid var(--border-color);
-  background: rgba(37, 41, 54, 0.65);
+  background: var(--bg-card);
 }
 
 .min-h-0 {
@@ -402,8 +404,8 @@ body {
 
 .btn-primary:hover,
 .btn-primary:focus {
-  background-color: #3a8eef;
-  border-color: #3a8eef;
+  background-color: var(--accent-blue-hover);
+  border-color: var(--accent-blue-hover);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(74, 158, 255, 0.3);
 }
@@ -641,7 +643,7 @@ body {
 .hbar-track {
   height: 0.35rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-hover);
   overflow: hidden;
 }
 
@@ -954,7 +956,7 @@ footer p {
   font-size: 0.75rem;
   white-space: pre-wrap;
   color: var(--text-secondary);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-hover);
   padding: 0.75rem;
   border-radius: 8px;
 }
@@ -982,6 +984,72 @@ footer p {
 
 .memorial-diagrama {
   border-color: rgba(74, 158, 255, 0.25);
+}
+
+/* Tema claro automático: segue Windows/Linux/browser. O escuro atual continua
+ * sendo o padrão de identidade quando o sistema está escuro. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="blueprint"]):not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg-dark: #f4f7fb;
+    --bg-card: #ffffff;
+    --bg-hover: #eef3f9;
+    --text-primary: #0f172a;
+    --text-secondary: #5b6b80;
+    --accent-blue: #0e7490;
+    --accent-blue-hover: #0d5f78;
+    --accent-green: #0f9f6e;
+    --accent-orange: #0891b2;
+    --accent-red: #c2415a;
+    --border-color: #d6dfea;
+    --bs-primary-rgb: 14, 116, 144;
+    --bs-success-rgb: 15, 159, 110;
+    --bs-danger-rgb: 194, 65, 90;
+    --bs-info-rgb: 8, 145, 178;
+    --bs-warning: #b45309;
+    --bs-warning-rgb: 180, 83, 9;
+    --bs-table-striped-bg: rgba(15, 23, 42, 0.03);
+  }
+
+  :root:not([data-theme="blueprint"]):not([data-theme="dark"]) body {
+    background-image: none;
+  }
+
+  :root:not([data-theme="blueprint"]):not([data-theme="dark"]) .logo-img {
+    filter: brightness(0) saturate(100%);
+  }
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-dark: #f4f7fb;
+  --bg-card: #ffffff;
+  --bg-hover: #eef3f9;
+  --text-primary: #0f172a;
+  --text-secondary: #5b6b80;
+  --accent-blue: #0e7490;
+  --accent-blue-hover: #0d5f78;
+  --accent-green: #0f9f6e;
+  --accent-orange: #0891b2;
+  --accent-red: #c2415a;
+  --border-color: #d6dfea;
+  --bs-primary-rgb: 14, 116, 144;
+  --bs-success-rgb: 15, 159, 110;
+  --bs-danger-rgb: 194, 65, 90;
+  --bs-info-rgb: 8, 145, 178;
+  --bs-warning: #b45309;
+  --bs-warning-rgb: 180, 83, 9;
+  --bs-table-striped-bg: rgba(15, 23, 42, 0.03);
+}
+
+[data-theme="light"] body,
+body[data-theme="light"] {
+  background-image: none;
+}
+
+[data-theme="light"] .logo-img,
+body[data-theme="light"] .logo-img {
+  filter: brightness(0) saturate(100%);
 }
 
 @media print {
