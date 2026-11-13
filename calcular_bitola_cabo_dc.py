@@ -389,16 +389,18 @@ def formatar_tabela(titulo, cabecalhos, linhas, nota=None):
     return "\n".join(linhas_saida)
 
 
-def obter_bitolas_analise_termica(bitola_recomendada, quantidade=3):
-    """Retorna a recomendada e as próximas maiores para comparação.
+def obter_bitolas_analise_termica(bitola_recomendada, anteriores=3):
+    """Retorna a recomendada e até ``anteriores`` bitolas menores.
 
-    No fim da tabela, recua o suficiente para manter até ``quantidade``
-    bitolas comerciais; a recomendada continua destacada.
+    As menores que a recomendada ficam reprovadas por definição: a recomendada
+    é a menor bitola comercial que atende aos dois critérios. A lista começa
+    pela aprovada e desce para as anteriores mais próximas.
     """
     tabela = CFG.bitolas_comerciais
     indice = tabela.index(bitola_recomendada)
-    inicio = min(indice, max(0, len(tabela) - quantidade))
-    return tabela[inicio:inicio + quantidade]
+    inicio = max(0, indice - anteriores)
+    menores = tabela[inicio:indice]
+    return [bitola_recomendada] + list(reversed(menores))
 
 
 def resistividade_em_temperatura(temperatura_c, cfg=None):
@@ -1510,7 +1512,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
 
     secoes.append({
         "id": "comparativo",
-        "titulo": "6. Comparativo - 3 melhores bitolas",
+        "titulo": "6. Comparativo - recomendada e anteriores",
         "descricao": texto_criterio_selecao_bitola(pct_limite),
         "tabela": comparativo,
     })
@@ -1820,7 +1822,7 @@ def main():
             nota=texto_criterio_selecao_bitola(pct_limite_termico),
         )
 
-        # Análise térmica comparativa: recomendada e as duas próximas maiores
+        # Análise térmica comparativa: recomendada e as anteriores reprovadas
         bitolas_analise = obter_bitolas_analise_termica(resultado['bitola_recomendada'])
         linhas_termicas = []
 
