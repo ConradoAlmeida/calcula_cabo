@@ -16,7 +16,7 @@
 | Queda de tensão máxima | % | 3 | Limite usado para dimensionar a bitola |
 | Temperatura máxima do cabo | °C | 200 | Usada na análise térmica |
 | Temperatura ambiente | °C | 25 | Usada na análise térmica |
-| Tipo de condutor | — | Cobre nu sólido | Nu/estanhado, sólido/multifilamento |
+| Tipo de condutor | — | Cobre nu sólido | Nu/estanhado; sólido, multifilamento rígido ou flexível |
 | Diâmetro externo do cabo | mm | estimado | Se omitido, o diâmetro é estimado a partir da bitola |
 | Salvar relatório TXT | s/n | — | Nome do arquivo é derivado dos parâmetros de entrada |
 | Incluir tabela de referência no TXT | s/n | — | Só aparece se o relatório for salvo |
@@ -54,16 +54,20 @@ Um `h` menor (compartimento fechado, embutido na estrutura, muitos condutores no
 
 O tipo de condutor altera a **resistividade** usada em todo o cálculo: seção por queda, equilíbrio térmico, queda em regime, tempo de aquecimento, tabela comparativa, memorial e relatório TXT. O padrão é o cobre nu sólido, que preserva o comportamento anterior.
 
-Os fatores são aplicados sobre a resistividade do cobre nu sólido (`ρ₀ = 0,0175 Ω·mm²/m`) e seguem a **NEC 2023, Capítulo 9, Tabela 8** (resistência DC a 75 °C):
+Os fatores são aplicados sobre a resistividade do cobre nu sólido (`ρ₀ = 0,0175 Ω·mm²/m`) e seguem a **IEC 60228:2024** (classes 1, 2, 5/6) e a **NEC 2023, Capítulo 9, Tabela 8** para o cobre estanhado:
 
-| Condutor | Fator sobre cobre nu sólido |
-| --- | --- |
-| Cobre nu — sólido (maciço) | `1,00` (padrão) |
-| Cobre estanhado — sólido (maciço) | `1,04` |
-| Cobre nu — multifilamento | `1,02` |
-| Cobre estanhado — multifilamento | `1,06` |
+| Condutor | Classe | Fator sobre cobre nu sólido | ρ efetiva (Ω·mm²/m) |
+| --- | --- | ---: | ---: |
+| Cobre nu — sólido (maciço) | 1 | `1,00` (padrão) | 0,01750 |
+| Cobre estanhado — sólido (maciço) | 1 | `1,04` | 0,01820 |
+| Cobre nu — multifilamento rígido | 2 | `1,05` | 0,018375 |
+| Cobre estanhado — multifilamento rígido | 2 | `1,07` | 0,018725 |
+| Cobre nu — multifilamento flexível | 4/5 | `1,10` | 0,01925 |
+| Cobre estanhado — multifilamento flexível | 4/5 | `1,14` | 0,01995 |
 
-A Tabela 8 da NEC separa exatamente essas quatro construções (uncoated/coated, solid/stranded). O estanho reduz a seção efetiva de cobre e o encordamento adiciona o efeito das pernas; por isso a resistência sobe. Se você usar outra referência (por exemplo IEC 60228, que admite cerca de 2% para cobre estanhado), basta recalibrar `[condutores]` no `config.ini`.
+A classe 2 (poucos fios grossos, cabo rígido) tem passo de torção maior e penalidade menor. As classes 4/5 (muitos fios finos, cabo flexível/manga) têm passo curto e comprimento real maior; por isso a resistência sobe mais. O estanho reduz a seção efetiva de cobre e acrescenta a resistência da camada, mas como a cobertura é fina o efeito efetivo é de poucos por cento — não os ~6× da resistividade do estanho isolado.
+
+A IEC 60228 fixa limites máximos de resistência DC por classe e bitola; os fatores acima são uma aproximação por classe para uso na calculadora. Se você usar outra referência, basta recalibrar `[condutores]` no `config.ini`.
 
 Para conferir os números em uso a qualquer momento (via web), acesse `GET /api/config`, que devolve a configuração ativa em JSON.
 

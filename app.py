@@ -22,6 +22,7 @@ from calcular_bitola_cabo_dc import (
     config_para_dict,
     condutores_disponiveis,
     gerar_memorial_calculo,
+    normalizar_condutor,
     resistividade_condutor,
     rotulo_condutor,
     texto_rodape_certificacao,
@@ -198,7 +199,7 @@ def _parse_entradas(dados):
         metodo = CFG.instalacao_padrao
 
     # Tipo de condutor (validado contra os tipos de config.ini).
-    condutor = str(dados.get("condutor") or "").strip()
+    condutor = normalizar_condutor(str(dados.get("condutor") or "").strip())
     if condutor not in CFG.condutores:
         condutor = CFG.condutor_padrao
 

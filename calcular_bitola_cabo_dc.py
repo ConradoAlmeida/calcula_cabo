@@ -77,23 +77,32 @@ _CAPACIDADE_PADRAO = {
 }
 
 # Tipo de condutor -> fator de resistividade sobre o cobre nu solido.
-# Referencia: NEC 2023, Chapter 9, Table 8 (Conductor Properties), resistencia
-# DC a 75 C. Os fatores refletem o encordamento e a cobertura de estanho:
-# solido nu 1,00; solido estanhado ~1,04; multifilamento nu ~1,02;
-# multifilamento estanhado ~1,06.
+# Referencia: IEC 60228:2024 (classes 1, 2, 5/6) e NEC 2023 Cap. 9 Tabela 8
+# (cobre estanhado). Os fatores representam a resistencia efetiva da
+# construcao sobre o cobre nu solido (rho0 = 0.0175 Ohm.mm2/m).
 _CONDUTORES_PADRAO = {
     "solido_nu": 1.00,
     "solido_estanhado": 1.04,
-    "multifilamento_nu": 1.02,
-    "multifilamento_estanhado": 1.06,
+    "multifilamento_rigido_nu": 1.05,
+    "multifilamento_rigido_estanhado": 1.07,
+    "multifilamento_flexivel_nu": 1.10,
+    "multifilamento_flexivel_estanhado": 1.14,
 }
 _CONDUTORES_ROTULOS_PADRAO = {
-    "solido_nu": "Cobre nu - solido (maci\u00e7o)",
-    "solido_estanhado": "Cobre estanhado - solido (maci\u00e7o)",
-    "multifilamento_nu": "Cobre nu - multifilamento",
-    "multifilamento_estanhado": "Cobre estanhado - multifilamento",
+    "solido_nu": "Cobre nu - sólido (maciço)",
+    "solido_estanhado": "Cobre estanhado - sólido (maciço)",
+    "multifilamento_rigido_nu": "Cobre nu - multifilamento rígido (classe 2)",
+    "multifilamento_rigido_estanhado": "Cobre estanhado - multifilamento rígido (classe 2)",
+    "multifilamento_flexivel_nu": "Cobre nu - multifilamento flexível (classes 4/5)",
+    "multifilamento_flexivel_estanhado": "Cobre estanhado - multifilamento flexível (classes 4/5)",
 }
 _CONDUTOR_PADRAO = "solido_nu"
+
+# Nomes antigos mantidos como apelido ao ajuste de classes.
+_CONDUTOR_ALIASES = {
+    "multifilamento_nu": "multifilamento_rigido_nu",
+    "multifilamento_estanhado": "multifilamento_rigido_estanhado",
+}
 
 # Métodos de instalação -> coeficiente de convecção efetivo (W/(m²·°C)).
 _INSTALACAO_PADRAO = {
@@ -376,10 +385,22 @@ def condutores_disponiveis(cfg=None):
     ]
 
 
+def normalizar_condutor(condutor=None, cfg=None):
+    """Resolve apelidos antigos para os ids atuais de condutor."""
+    cfg = cfg or CFG
+    condutor = condutor or cfg.condutor_padrao
+    if condutor in cfg.condutores:
+        return condutor
+    apelido = _CONDUTOR_ALIASES.get(condutor)
+    if apelido in cfg.condutores:
+        return apelido
+    return condutor
+
+
 def fator_condutor(condutor=None, cfg=None):
     """Fator de resistividade do condutor sobre o cobre nu sólido."""
     cfg = cfg or CFG
-    condutor = condutor or cfg.condutor_padrao
+    condutor = normalizar_condutor(condutor, cfg)
     return cfg.condutores.get(condutor, 1.0)
 
 
@@ -392,7 +413,7 @@ def resistividade_condutor(condutor=None, cfg=None):
 def rotulo_condutor(condutor=None, cfg=None):
     """Rótulo exibido para o tipo de condutor."""
     cfg = cfg or CFG
-    condutor = condutor or cfg.condutor_padrao
+    condutor = normalizar_condutor(condutor, cfg)
     return cfg.condutores_rotulos.get(condutor, condutor)
 
 
@@ -997,6 +1018,8 @@ def calcular_bitola_cb(
     if pct_limite_termico is None:
         pct_limite_termico = CFG.padroes.get("pct_limite_termico", 85.0)
 
+    condutor = normalizar_condutor(condutor)
+
     comprimento_total = distancia * 2
     queda_tensao_max = (queda_percentual / 100) * tensao
     usa_rho_t = temp_ambiente is not None and coef_conveccao is not None
@@ -1107,7 +1130,7 @@ def calcular_bitola_cb(
         "criterio_governante": criterio_governante,
         "bitola_recomendada": bitola_ideal,
         "bitola_awg": mm2_para_awg(bitola_ideal),
-        "condutor": condutor or CFG.condutor_padrao,
+        "condutor": condutor,
         "condutor_rotulo": rotulo_condutor(condutor),
         "fator_condutor": fator_condutor(condutor),
         "resistividade_condutor_20c": round(resistividade_condutor(condutor), 6),
@@ -1376,7 +1399,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
             (
                 f"Condutor: {condutor_rotulo} "
                 f"(ρ₀ = {_fmt(rho0, 4)} Ω·mm²/m; fator {_fmt(fator_condutor(condutor_id, cfg), 2)} "
-                "sobre o cobre nu sólido — NEC 2023, Cap. 9, Tabela 8)."
+                "sobre o cobre nu sólido — IEC 60228:2024 / NEC 2023 Tabela 8)."
             ),
             (
                 f"Limites de queda por tipo de circuito: {critico_pct:g}% — "

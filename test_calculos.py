@@ -36,14 +36,29 @@ def test_condutores_padrao_disponiveis():
     assert ids == [
         "solido_nu",
         "solido_estanhado",
-        "multifilamento_nu",
-        "multifilamento_estanhado",
+        "multifilamento_rigido_nu",
+        "multifilamento_rigido_estanhado",
+        "multifilamento_flexivel_nu",
+        "multifilamento_flexivel_estanhado",
     ]
     assert m.CFG.condutor_padrao == "solido_nu"
     assert m.fator_condutor() == 1.0
     assert m.resistividade_condutor() == pytest.approx(0.0175)
     assert m.resistividade_condutor("solido_estanhado") == pytest.approx(0.0182)
-    assert m.resistividade_condutor("multifilamento_estanhado") == pytest.approx(0.01855)
+    assert m.resistividade_condutor("multifilamento_rigido_nu") == pytest.approx(0.018375)
+    assert m.resistividade_condutor("multifilamento_rigido_estanhado") == pytest.approx(0.018725)
+    assert m.resistividade_condutor("multifilamento_flexivel_nu") == pytest.approx(0.01925)
+    assert m.resistividade_condutor("multifilamento_flexivel_estanhado") == pytest.approx(0.01995)
+
+
+def test_apelidos_antigos_de_multifilamento_viram_classe_2():
+    assert m.normalizar_condutor("multifilamento_nu") == "multifilamento_rigido_nu"
+    assert m.normalizar_condutor("multifilamento_estanhado") == "multifilamento_rigido_estanhado"
+    r = m.calcular_bitola_cb(
+        distancia=7, corrente=7, tensao=12, queda_percentual=5,
+        condutor="multifilamento_estanhado",
+    )
+    assert r["condutor"] == "multifilamento_rigido_estanhado"
 
 
 def test_condutor_estanhado_aumenta_resistencia_e_queda():
@@ -59,19 +74,32 @@ def test_condutor_estanhado_aumenta_resistencia_e_queda():
     assert q_est["queda_tensao_volts"] > q_nu["queda_tensao_volts"]
 
 
-def test_multifilamento_estanhado_tem_maior_resistencia():
+def test_multifilamento_flexivel_estanhado_tem_maior_resistencia():
     r_nu = m.calcular_bitola_cb(
         distancia=7, corrente=7, tensao=12, queda_percentual=5,
         condutor="solido_nu",
     )
     r_est = m.calcular_bitola_cb(
         distancia=7, corrente=7, tensao=12, queda_percentual=5,
-        condutor="multifilamento_estanhado",
+        condutor="multifilamento_flexivel_estanhado",
     )
     assert r_est["resistividade_condutor_20c"] > r_nu["resistividade_condutor_20c"]
     assert r_est["secao_teorica_vdrop"] > r_nu["secao_teorica_vdrop"]
-    assert r_est["condutor"] == "multifilamento_estanhado"
-    assert "multifilamento" in r_est["condutor_rotulo"].lower()
+    assert r_est["condutor"] == "multifilamento_flexivel_estanhado"
+    assert "flexível" in r_est["condutor_rotulo"].lower()
+
+
+def test_multifilamento_flexivel_penaliza_mais_que_rigido():
+    r_rig = m.calcular_bitola_cb(
+        distancia=7, corrente=7, tensao=12, queda_percentual=5,
+        condutor="multifilamento_rigido_nu",
+    )
+    r_flex = m.calcular_bitola_cb(
+        distancia=7, corrente=7, tensao=12, queda_percentual=5,
+        condutor="multifilamento_flexivel_nu",
+    )
+    assert r_flex["resistividade_condutor_20c"] > r_rig["resistividade_condutor_20c"]
+    assert r_flex["secao_teorica_vdrop"] > r_rig["secao_teorica_vdrop"]
 
 
 def test_condutor_estanhado_pode_subir_a_bitola():
@@ -106,15 +134,15 @@ def test_payload_inclui_condutor_memorial_e_referencia():
         "temp_max": 200,
         "temp_amb": 25,
         "pct_limite_termico": 85,
-        "condutor": "multifilamento_estanhado",
+        "condutor": "multifilamento_flexivel_estanhado",
     }
     payload = _calcular(_parse_entradas(entrada))
-    assert payload["condutor"]["id"] == "multifilamento_estanhado"
-    assert payload["principal"]["condutor"] == "multifilamento_estanhado"
-    assert "multifilamento" in str(payload["memorial"]).lower()
+    assert payload["condutor"]["id"] == "multifilamento_flexivel_estanhado"
+    assert payload["principal"]["condutor"] == "multifilamento_flexivel_estanhado"
+    assert "flexível" in str(payload["memorial"]).lower()
 
     ref = {linha["bitola"]: linha["resistencia_km"] for linha in payload["referencia"]}
-    assert ref["4.0"] == "4.6375"
+    assert ref["4.0"] == "4.9875"
 
 
 def test_relatorio_txt_inclui_condutor(tmp_path):
@@ -388,8 +416,10 @@ def test_carregar_config_padrao_bate_com_embutido():
     assert cfg.condutores == {
         "solido_nu": 1.00,
         "solido_estanhado": 1.04,
-        "multifilamento_nu": 1.02,
-        "multifilamento_estanhado": 1.06,
+        "multifilamento_rigido_nu": 1.05,
+        "multifilamento_rigido_estanhado": 1.07,
+        "multifilamento_flexivel_nu": 1.10,
+        "multifilamento_flexivel_estanhado": 1.14,
     }
 
 
