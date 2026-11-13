@@ -2,8 +2,8 @@
 
 Calculadora de bitola de cabo de energia **DC**. Dimensiona a seção do condutor
 de cobre pela queda de tensão máxima **e** pela análise térmica em regime,
-escolhe a menor bitola comercial que atende aos dois critérios e compara com as
-bitolas vizinhas. Tem CLI interativa e interface web com memorial de cálculo.
+escolhe a menor bitola comercial que atende aos dois critérios e compara as
+3 melhores opções. Tem CLI interativa e interface web com memorial de cálculo.
 
 ## O que o programa faz
 
@@ -11,7 +11,7 @@ bitolas vizinhas. Tem CLI interativa e interface web com memorial de cálculo.
 - Seleciona a **menor** bitola comercial com **Vdrop T. final** dentro do limite **e** critério térmico aprovado.
 - Converte a bitola recomendada para **AWG** / MCM.
 - Mostra queda de tensão inicial (cabo frio) e em regime (ρ(T_regime)).
-- Compara a bitola anterior, a recomendada e a seguinte (queda, ρ(T) e aquecimento).
+- Compara a recomendada e até duas opções seguintes (3 opções: queda, ρ(T) e aquecimento).
 - Exibe status unificado **APROVADO** / **REPROVADO** (queda + térmica).
 - Opcionalmente gera um relatório completo em `.txt`.
 - Opcionalmente exibe uma tabela de referência de bitolas e capacidade de corrente.

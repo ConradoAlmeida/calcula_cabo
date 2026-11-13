@@ -21,6 +21,19 @@ def test_dimensionamento_exemplo_readme():
     assert r["queda_tensao_percentual"] == 3.57
 
 
+def test_analise_termica_traz_recomendada_e_duas_maiores():
+    assert m.obter_bitolas_analise_termica(4.0) == [4.0, 6.0, 10.0]
+    assert m.obter_bitolas_analise_termica(0.5) == [0.5, 0.75, 1.0]
+    assert m.obter_bitolas_analise_termica(630.0) == [400.0, 500.0, 630.0]
+
+
+def test_analise_termica_sempre_inclui_a_recomendada():
+    for bitola in m.CFG.bitolas_comerciais:
+        opcoes = m.obter_bitolas_analise_termica(bitola)
+        assert bitola in opcoes
+        assert len(opcoes) <= 3
+
+
 def test_queda_para_bitola_bate_com_formula():
     """R = rho*L/S; V = I*R. Para 4 mm², 14 m, 7 A: R=0.061250, V=0.4288 V."""
     q = m.calcular_queda_para_bitola(bitola=4.0, comprimento_total=14.0, corrente=7, tensao=12)
