@@ -107,7 +107,7 @@ Com essa bitola, o programa recalcula resistência, queda em volts e queda perce
 
 ### Análise térmica
 
-Para a bitola recomendada e até três anteriores, o programa estima:
+Para até duas bitolas acima, a recomendada e até três anteriores, o programa estima:
 
 - potência dissipada por efeito Joule (W/m e W total no trecho), com ρ(T) em regime
 - temperatura de regime com realimentação térmica (ρ sobe com T)
