@@ -21,7 +21,7 @@ def test_dimensionamento_exemplo_readme():
     assert r["queda_tensao_percentual"] == 3.57
 
 
-def test_analise_termica_traz_quatro_anteriores_e_duas_acima():
+def test_analise_termica_traz_ate_quatro_anteriores_e_duas_acima():
     assert m.obter_bitolas_analise_termica(4.0) == [
         0.75, 1.0, 1.5, 2.5, 4.0, 6.0, 10.0
     ]

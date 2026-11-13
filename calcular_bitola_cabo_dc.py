@@ -1512,7 +1512,7 @@ def gerar_memorial_calculo(entradas, resultado, h_efetivo, cfg=None):
 
     secoes.append({
         "id": "comparativo",
-        "titulo": "6. Comparativo - 4 anteriores, recomendada e acima",
+        "titulo": "6. Comparativo - até 4 anteriores, recomendada e acima",
         "descricao": texto_criterio_selecao_bitola(pct_limite),
         "tabela": comparativo,
     })
