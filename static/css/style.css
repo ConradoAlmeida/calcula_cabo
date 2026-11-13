@@ -56,6 +56,9 @@
 body {
   min-height: 100vh;
   background-color: var(--bg-dark);
+  background-image: url("../images/background_calcula.svg");
+  background-size: 160px;
+  background-repeat: repeat;
   color: var(--text-primary);
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
