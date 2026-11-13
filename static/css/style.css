@@ -247,25 +247,26 @@ body {
 /* Cabeçalho */
 .app-header,
 .top-bar {
-  background-color: var(--bg-card);
-  border-bottom: 1px solid var(--border-color);
+  background-color: var(--moya-header-bg);
+  border-bottom: 1px solid var(--moya-header-border);
+  color: var(--moya-header-text);
 }
 
 .app-header h1,
 .top-bar h1 {
   font-size: 1.15rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--moya-header-text);
 }
 
 .app-header .app-accent,
 .top-bar .app-accent {
-  color: var(--accent-orange);
+  color: var(--moya-header-accent);
 }
 
 .app-header .subtitle,
 .top-bar .subtitle {
-  color: var(--text-secondary);
+  color: var(--moya-header-muted);
   font-size: 0.75rem;
   line-height: 1.2;
 }
@@ -1014,10 +1015,6 @@ footer p {
   :root:not([data-theme="blueprint"]):not([data-theme="dark"]) body {
     background-image: none;
   }
-
-  :root:not([data-theme="blueprint"]):not([data-theme="dark"]) .logo-img {
-    filter: brightness(0) saturate(100%);
-  }
 }
 
 [data-theme="light"] {
@@ -1045,11 +1042,6 @@ footer p {
 [data-theme="light"] body,
 body[data-theme="light"] {
   background-image: none;
-}
-
-[data-theme="light"] .logo-img,
-body[data-theme="light"] .logo-img {
-  filter: brightness(0) saturate(100%);
 }
 
 @media print {
