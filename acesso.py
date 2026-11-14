@@ -120,9 +120,9 @@ def _pagina(erro):
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Entrar - Calcula Cabo</title>
   <link rel="icon" href="/static/images/favicon.ico">
-  <link rel="stylesheet" href="/static/vendor/moya-ui/tokens.css?v=20261113f">
-  <link rel="stylesheet" href="/static/vendor/moya-ui/components.css?v=20261113f">
-  <link rel="stylesheet" href="/static/vendor/moya-ui/login.css?v=20261113f">
+  <link rel="stylesheet" href="/static/vendor/moya-ui/tokens.css?v=20261114a">
+  <link rel="stylesheet" href="/static/vendor/moya-ui/components.css?v=20261114a">
+  <link rel="stylesheet" href="/static/vendor/moya-ui/login.css?v=20261114a">
 </head>
 <body class="auth-body">
   <main class="auth-card">

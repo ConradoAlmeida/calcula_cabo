@@ -8,18 +8,24 @@
   <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='images/favicon-16.png') }}" />
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32.png') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/moya-ui/tokens.css') }}?v=20261113f" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261113f" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/moya-ui/tokens.css') }}?v=20261114a" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/moya-ui/header.css') }}?v=20261114a" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261114a" />
 </head>
 <body class="app-shell">
-  <header class="app-header top-bar">
-    <div class="container-fluid app-header-inner">
-      <div class="d-flex align-items-center gap-2 gap-md-3">
-        <img src="{{ url_for('static', filename='images/logo_dashboard.png') }}" alt="Logo" class="logo-img" />
-        <div class="min-w-0">
-          <h1 class="h5 mb-0 text-truncate">Calculadora de Bitola <span class="app-accent">DC</span></h1>
-          <p class="mb-0 subtitle d-none d-md-block">Queda de tensão e análise térmica — cabos de cobre UAS</p>
-        </div>
+  <header class="moya-app-header">
+    <div class="moya-app-header__inner">
+      <a class="moya-app-header__brand" href="/">
+        <img class="moya-app-header__logo" src="{{ url_for('static', filename='images/moya_wordmark_official.svg') }}" alt="Moya" />
+        <span class="moya-app-header__divider" aria-hidden="true"></span>
+        <span class="moya-app-header__titles">
+          <span class="moya-app-header__name">Calculadora de Bitola DC</span>
+          <span class="moya-app-header__subtitle">Queda de tensão e análise térmica — cabos de cobre UAS</span>
+        </span>
+      </a>
+      <div class="moya-app-header__utilities">
+        {% if session.get('usuario') %}<span class="moya-app-header__user">{{ session.get('usuario') }}</span>{% endif %}
+        <a class="moya-app-header__action moya-app-header__action--danger" href="/logout">Sair</a>
       </div>
     </div>
   </header>

@@ -6,21 +6,25 @@
   <title>Memorial de Cálculo — Bitola DC</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/moya-ui/tokens.css') }}?v=20261113f" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261113f" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/moya-ui/tokens.css') }}?v=20261114a" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/moya-ui/header.css') }}?v=20261114a" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261114a" />
 </head>
 <body>
-  <header class="app-header top-bar">
-    <div class="container py-3">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div class="d-flex align-items-center gap-3">
-          <img src="{{ url_for('static', filename='images/logo_dashboard.png') }}" alt="Logo" class="logo-img" />
-          <div>
-            <h1 class="h4 mb-0">Memorial de <span class="app-accent">Cálculo</span></h1>
-            <p class="mb-0 subtitle">Detalhamento passo a passo para validação</p>
-          </div>
-        </div>
-        <a href="/" class="btn btn-outline-secondary btn-sm">← Voltar à calculadora</a>
+  <header class="moya-app-header no-print">
+    <div class="moya-app-header__inner">
+      <a class="moya-app-header__brand" href="/">
+        <img class="moya-app-header__logo" src="{{ url_for('static', filename='images/moya_wordmark_official.svg') }}" alt="Moya" />
+        <span class="moya-app-header__divider" aria-hidden="true"></span>
+        <span class="moya-app-header__titles">
+          <span class="moya-app-header__name">Memorial de Cálculo</span>
+          <span class="moya-app-header__subtitle">Detalhamento passo a passo para validação</span>
+        </span>
+      </a>
+      <div class="moya-app-header__utilities">
+        {% if session.get('usuario') %}<span class="moya-app-header__user">{{ session.get('usuario') }}</span>{% endif %}
+        <a class="moya-app-header__action" href="/">Voltar à calculadora</a>
+        <a class="moya-app-header__action moya-app-header__action--danger" href="/logout">Sair</a>
       </div>
     </div>
   </header>
