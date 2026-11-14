@@ -992,9 +992,9 @@ footer p {
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="blueprint"]):not([data-theme="dark"]) {
     color-scheme: light;
-    --bg-dark: #f4f7fb;
+    --bg-dark: #e3e3e3;
     --bg-card: #ffffff;
-    --bg-hover: #eef3f9;
+    --bg-hover: #dcdcdc;
     --text-primary: #0f172a;
     --text-secondary: #5b6b80;
     --accent-blue: #0e7490;
@@ -1019,9 +1019,9 @@ footer p {
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg-dark: #f4f7fb;
+  --bg-dark: #e3e3e3;
   --bg-card: #ffffff;
-  --bg-hover: #eef3f9;
+  --bg-hover: #dcdcdc;
   --text-primary: #0f172a;
   --text-secondary: #5b6b80;
   --accent-blue: #0e7490;
